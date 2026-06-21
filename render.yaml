@@ -1,0 +1,12 @@
+﻿services:
+  - type: web
+    name: yacht-ai-broker-engine
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run dev:api
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: AGENT_MODE
+        value: draft_only

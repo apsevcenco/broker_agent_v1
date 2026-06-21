@@ -1,0 +1,1 @@
+﻿export async function createGmailDraftPlaceholder(to: string, body: string) { return { status: "disabled_in_v1", to, body, todo: "Create drafts only after OAuth and admin approval controls are implemented." }; }
