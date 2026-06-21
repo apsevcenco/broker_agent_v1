@@ -45,3 +45,42 @@ The current V1 uses in-memory data for fast local operation. Use `docs/DATABASE_
 ## Safety model
 
 No external messages are sent automatically. All high-risk disclosures, documents, legal/commercial terms, commission discussion and buyer/broker access decisions require admin approval.
+
+## Supabase setup
+
+1. Create a Supabase project.
+2. Open SQL Editor.
+3. Run `supabase/migrations/20260621190000_yacht_ai_broker_engine_v1.sql`.
+4. Open Project Settings -> API.
+5. Copy `Project URL` into `SUPABASE_URL`.
+6. Copy `service_role` key into `SUPABASE_SERVICE_ROLE_KEY`.
+7. Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only. Never expose it in frontend code.
+
+When these variables are present, the API uses Supabase persistence. Without them, local development falls back to in-memory storage.
+
+## Render setup
+
+Use the included `render.yaml` as a Blueprint, or create a Render Web Service manually from the GitHub repository.
+
+Build command:
+
+```bash
+npm install && npm run build
+```
+
+Start command:
+
+```bash
+npm run start
+```
+
+Required Render environment variables:
+
+```env
+NODE_VERSION=20
+AGENT_MODE=draft_only
+SUPABASE_URL=your-supabase-project-url
+SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=change-me
+```

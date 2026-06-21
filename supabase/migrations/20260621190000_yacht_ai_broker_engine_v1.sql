@@ -1,4 +1,6 @@
-﻿create table users (
+﻿create extension if not exists pgcrypto;
+
+create table users (
   id uuid primary key default gen_random_uuid(),
   email text unique not null,
   role text not null default 'admin',
@@ -156,4 +158,15 @@ create table deals_reference (
   pdye_deal_room_id text,
   notes text,
   created_at timestamptz not null default now()
+);
+
+insert into knowledge_entries (title, category, summary, content, source, reliability_level, tags)
+values (
+  'Off-market confidentiality baseline',
+  'Off-Market Deals',
+  'Sensitive details are disclosed only after qualification and approval.',
+  'Yacht identity, owner details, exact location, documents and commercial terms must stay internal until admin approval is granted.',
+  'Internal V1 rule',
+  'verified',
+  array['confidentiality', 'approval', 'off-market']
 );

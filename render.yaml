@@ -1,12 +1,21 @@
-﻿services:
+services:
   - type: web
     name: yacht-ai-broker-engine
     env: node
     plan: starter
     buildCommand: npm install && npm run build
-    startCommand: npm run dev:api
+    startCommand: npm run start
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 20
       - key: AGENT_MODE
         value: draft_only
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
