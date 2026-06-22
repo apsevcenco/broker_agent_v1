@@ -1,8 +1,10 @@
-﻿# Database Schema
+# Database Schema
 
-PostgreSQL/Supabase schema for Yacht AI Broker Engine V1.
+PostgreSQL/Supabase schema for Luxury Mobility AI Operating System V1.
 
 ```sql
+create extension if not exists pgcrypto;
+
 create table users (
   id uuid primary key default gen_random_uuid(),
   email text unique not null,
@@ -10,8 +12,47 @@ create table users (
   created_at timestamptz not null default now()
 );
 
+create table agents (
+  id text primary key,
+  name text not null,
+  slug text unique not null,
+  status text not null,
+  category text not null,
+  description text not null,
+  risk_level text not null default 'medium',
+  default_tone text not null,
+  system_rules jsonb not null default '[]'::jsonb,
+  allowed_actions jsonb not null default '[]'::jsonb,
+  blocked_actions jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table agent_capabilities (
+  id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
+  capability text not null,
+  status text not null default 'planned',
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table contacts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  company text,
+  email text,
+  phone text,
+  country text,
+  role text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table leads (
   id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
   name text not null,
   company text,
   email text,
@@ -37,16 +78,36 @@ create table leads (
 
 create table conversations (
   id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
   lead_id uuid references leads(id),
   source text not null,
   status text not null default 'open',
   created_at timestamptz not null default now()
 );
 
+create table assets (
+  id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
+  type text not null,
+  name text not null,
+  brand text,
+  model text,
+  year integer,
+  location text,
+  status text not null default 'draft',
+  owner_contact_id uuid references contacts(id),
+  notes text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table messages (
   id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
   conversation_id uuid references conversations(id),
   lead_id uuid references leads(id),
+  related_asset_id uuid references assets(id),
   source text not null,
   sender_name text not null,
   sender_company text,
@@ -63,6 +124,7 @@ create table messages (
 
 create table agent_tasks (
   id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
   type text not null,
   title text not null,
   description text,
@@ -70,18 +132,21 @@ create table agent_tasks (
   priority text not null default 'medium',
   related_lead_id uuid references leads(id),
   related_message_id uuid references messages(id),
+  related_asset_id uuid references assets(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create table agent_approvals (
   id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
   type text not null,
   title text not null,
   payload text not null,
   status text not null default 'pending',
   risk_level text not null,
   related_message_id uuid references messages(id),
+  related_asset_id uuid references assets(id),
   decided_by uuid references users(id),
   decided_at timestamptz,
   created_at timestamptz not null default now()
@@ -89,14 +154,16 @@ create table agent_approvals (
 
 create table agent_activity_logs (
   id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
   actor text not null,
   action text not null,
   details text,
   created_at timestamptz not null default now()
 );
 
-create table broker_memory (
+create table memory_entries (
   id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
   person_name text not null,
   company text,
   role text,
@@ -104,6 +171,7 @@ create table broker_memory (
   trust_level text default 'unknown',
   past_interactions jsonb not null default '[]'::jsonb,
   preferred_communication_style text,
+  known_asset_interests text,
   known_yacht_interests text,
   deal_history text,
   warnings text,
@@ -115,6 +183,7 @@ create table broker_memory (
 
 create table knowledge_entries (
   id uuid primary key default gen_random_uuid(),
+  agent_id text references agents(id),
   title text not null,
   category text not null,
   summary text,
@@ -133,7 +202,7 @@ create table knowledge_tags (
 
 create table relationship_notes (
   id uuid primary key default gen_random_uuid(),
-  memory_id uuid references broker_memory(id),
+  memory_id uuid references memory_entries(id),
   lead_id uuid references leads(id),
   note text not null,
   source text not null default 'admin',
@@ -142,6 +211,7 @@ create table relationship_notes (
 
 create table yachts_reference (
   id uuid primary key default gen_random_uuid(),
+  asset_id uuid references assets(id),
   display_label text not null,
   confidential_name text,
   yacht_type text,
@@ -150,6 +220,22 @@ create table yachts_reference (
   location_general text,
   exact_location text,
   disclosure_status text not null default 'restricted',
+  created_at timestamptz not null default now()
+);
+
+create table vehicles (
+  id uuid primary key default gen_random_uuid(),
+  asset_id uuid references assets(id),
+  segment text,
+  daily_price numeric,
+  weekly_price numeric,
+  monthly_price numeric,
+  deposit numeric,
+  insurance_notes text,
+  included_km integer,
+  extra_km_price numeric,
+  chauffeur_price numeric,
+  availability_status text default 'planned',
   created_at timestamptz not null default now()
 );
 
@@ -162,4 +248,25 @@ create table deals_reference (
   notes text,
   created_at timestamptz not null default now()
 );
+
+insert into agents (id, name, slug, status, category, description, risk_level, default_tone, system_rules, allowed_actions, blocked_actions)
+values
+('yacht-broker-agent', 'Yacht Broker Agent', 'yacht-broker', 'active', 'yachts', 'Yacht brokerage, off-market deals, distressed yacht sales, broker cooperation, buyer/seller qualification.', 'high', 'Senior yacht broker, discreet, concise, professional.', '["Confidentiality first", "Draft only in V1", "Human approval for high-risk actions"]', '["classify message", "create draft task", "suggest reply", "suggest lead score", "suggest memory update", "suggest next action"]', '["automatic sending", "autonomous deal approval", "legal advice", "paid database ingestion"]'),
+('car-rental-agent', 'Car Rental Agent', 'car-rental', 'planned', 'car_rental', 'Car rental, luxury vehicles, chauffeur service, transfers, weddings, events and fleet management.', 'medium', 'Luxury mobility operator, clear, practical and service-focused.', '["No live booking in V1", "Contracts require approval", "Pricing disclosures require review"]', '["draft rental task", "suggest qualification questions", "summarize vehicle requirements"]', '["confirm availability", "send contract", "take payment", "approve rental"]'),
+('yachtworth-support-agent', 'YachtWorth Support Agent', 'yachtworth-support', 'planned', 'support', 'Technical support, bug triage, user support, Codex fix preparation and product QA.', 'medium', 'Calm product support specialist, precise and actionable.', '["Do not expose secrets", "Prepare fixes for human review", "Preserve user data"]', '["triage bug", "draft support reply", "prepare Codex fix prompt"]', '["deploy without approval", "change customer data", "expose logs containing secrets"]'),
+('charter-agent', 'Charter Agent', 'charter', 'planned', 'charter', 'Yacht charter inquiries, APA, itineraries, charter pricing and client qualification.', 'high', 'Discreet charter broker, polished and concise.', '["No charter confirmation in V1", "Commercial terms require approval"]', '["draft itinerary questions", "suggest qualification", "summarize charter request"]', '["confirm booking", "send offer", "collect payment"]'),
+('marketing-agent', 'Marketing Agent', 'marketing', 'planned', 'marketing', 'Content planning, social media drafts, campaigns and lead generation.', 'medium', 'Luxury brand marketer, restrained and conversion-aware.', '["Draft only", "No automatic publishing", "Respect confidentiality"]', '["draft content", "suggest campaign", "summarize audience"]', '["publish automatically", "use confidential asset data", "scrape paid sources"]');
+
+insert into knowledge_entries (agent_id, title, category, summary, content, source, reliability_level, tags)
+values (
+  'yacht-broker-agent',
+  'Off-market confidentiality baseline',
+  'Off-Market Deals',
+  'Sensitive details are disclosed only after qualification and approval.',
+  'Asset identity, owner details, exact location, documents and commercial terms must stay internal until admin approval is granted.',
+  'Internal V1 rule',
+  'verified',
+  array['confidentiality', 'approval', 'off-market', 'yacht-broker']
+);
+
 ```

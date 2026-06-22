@@ -1,22 +1,34 @@
-﻿# Yacht AI Broker Engine
+﻿# Luxury Mobility AI Operating System
 
-A standalone V1 foundation for a private digital senior yacht broker working under human supervision. The system is API-first, draft-only in V1, and designed for future PDYE, YachtWorth, Gmail, LinkedIn, Instagram, WhatsApp, OpenAI and vector database integrations.
+A standalone multi-agent AI command center for luxury mobility operations. The first active module is the Yacht Broker Agent; the shared core is designed to support charter, valuation, support, car rental, concierge, marketing, research and compliance agents later.
 
-## What works now
+## Core V1
 
-- React + Vite + TypeScript admin dashboard.
-- Node.js + Express + TypeScript API.
-- Manual inbox message creation.
-- Rule-based message classification.
-- Rule-based lead scoring and risk assessment.
-- Reply draft generation.
-- Approval queue for drafts, lead scores and sensitive actions.
-- Task generation.
-- Editable leads, memory and knowledge base records.
-- Activity log.
-- SQL schema and Supabase migration draft.
+- Global dashboard.
+- Agents registry.
+- Shared inbox.
+- Shared CRM/leads.
+- Shared memory.
+- Shared knowledge base.
+- Shared assets registry.
+- Shared tasks, approvals and activity log.
+- Supabase/PostgreSQL persistence with local memory fallback.
+- Provider-agnostic AI layer with mock/local fallback.
+- Render-ready backend and static frontend deployment.
 
-## Run locally
+## Active Agent
+
+Yacht Broker Agent is active in V1. It handles yacht brokerage, off-market deals, distressed opportunities, broker cooperation, buyer/seller qualification, draft replies, lead scoring and approval-controlled next steps.
+
+## Planned Agents
+
+- Car Rental Agent
+- YachtWorth Support Agent
+- Charter Agent
+- Marketing Agent
+- Future concierge, valuation, research and compliance assistants
+
+## Run Locally
 
 ```bash
 npm install
@@ -28,9 +40,9 @@ API: http://localhost:4100
 
 ## Environment
 
-Copy `.env.example` to `.env` and fill values as needed.
+Copy `.env.example` to `.env`.
 
-```bash
+```env
 PORT=4100
 VITE_API_BASE_URL=http://localhost:4100
 SUPABASE_URL=
@@ -38,49 +50,53 @@ SUPABASE_SERVICE_ROLE_KEY=
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=change-me
 AGENT_MODE=draft_only
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+PERPLEXITY_API_KEY=
 ```
 
-The current V1 uses in-memory data for fast local operation. Use `docs/DATABASE_SCHEMA.md` or `supabase/migrations/20260621190000_yacht_ai_broker_engine_v1.sql` when wiring Supabase persistence.
+When Supabase variables are present, the API uses Supabase persistence. Without them, local development uses in-memory storage.
 
-## Safety model
-
-No external messages are sent automatically. All high-risk disclosures, documents, legal/commercial terms, commission discussion and buyer/broker access decisions require admin approval.
-
-## Supabase setup
+## Supabase Setup
 
 1. Create a Supabase project.
 2. Open SQL Editor.
 3. Run `supabase/migrations/20260621190000_yacht_ai_broker_engine_v1.sql`.
-4. Open Project Settings -> API.
-5. Copy `Project URL` into `SUPABASE_URL`.
-6. Copy `service_role` key into `SUPABASE_SERVICE_ROLE_KEY`.
-7. Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only. Never expose it in frontend code.
+4. Copy Project URL into `SUPABASE_URL`.
+5. Copy service_role key into `SUPABASE_SERVICE_ROLE_KEY`.
 
-When these variables are present, the API uses Supabase persistence. Without them, local development falls back to in-memory storage.
+Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only.
 
-## Render setup
+## Render Setup
 
-Use the included `render.yaml` as a Blueprint, or create a Render Web Service manually from the GitHub repository.
-
-Build command:
+Backend Web Service:
 
 ```bash
 npm install && npm run build
-```
-
-Start command:
-
-```bash
 npm run start
 ```
 
-Required Render environment variables:
+Static Frontend:
 
-```env
-NODE_VERSION=20
-AGENT_MODE=draft_only
-SUPABASE_URL=your-supabase-project-url
-SUPABASE_SERVICE_ROLE_KEY=your-server-only-service-role-key
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=change-me
+```text
+Build Command: npm install && npm run build
+Publish Directory: dist/frontend
+VITE_API_BASE_URL=https://your-backend.onrender.com
 ```
+
+Rewrite rule:
+
+```text
+Source: /*
+Destination: /index.html
+Action: Rewrite
+```
+
+## Safety Model
+
+Allowed without approval: classify message, create draft task, suggest reply, suggest lead score, suggest memory update, suggest next action.
+
+Requires approval: send message, disclose confidential asset data, change access rights, discuss commission, send contract, send offer, approve a client, connect to external platform.
+
+Blocked in V1: automatic social/WhatsApp sending, scraping, paid database ingestion, autonomous deal approval, autonomous legal advice.

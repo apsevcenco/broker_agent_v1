@@ -7,7 +7,9 @@ import { assessRisk } from "../../agent/riskAssessment";
 import { suggestReply } from "../../agent/suggestReply";
 import { generateTasks } from "../../agent/taskGenerator";
 import { searchKnowledge } from "../../agent/knowledgeSearch";
-import type { AgentTask, InboxMessage, KnowledgeEntry, Lead, MemoryEntry } from "../../shared/types";
+import type { AgentTask, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
+import { aiRouter } from "../../ai/aiRouter";
+import { activeAgentId } from "../data/agents";
 import { repository } from "../data/repository";
 
 const router = Router();
@@ -17,6 +19,35 @@ const asyncRoute = (handler: (req: Request, res: Response) => Promise<void>) => 
   handler(req, res).catch(next);
 };
 
+
+router.get("/agents", asyncRoute(async (_req, res) => {
+  res.json(await repository.listAgents());
+}));
+router.get("/agents/:slug", asyncRoute(async (req, res) => {
+  const agent = await repository.findAgentBySlug(String(req.params.slug));
+  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  res.json(agent);
+}));
+
+router.get("/assets", asyncRoute(async (_req, res) => {
+  res.json(await repository.listAssets());
+}));
+router.post("/assets", asyncRoute(async (req, res) => {
+  const asset: ManagedAsset = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, type: "other", name: "New Asset", status: "draft", metadata: {}, createdAt: now(), updatedAt: now(), ...req.body };
+  const created = await repository.createAsset(asset);
+  await repository.logActivity("admin", "asset_created", `${asset.type}: ${asset.name}`, asset.agentId);
+  res.status(201).json(created);
+}));
+router.patch("/assets/:id", asyncRoute(async (req, res) => {
+  const asset = await repository.updateAsset(routeId(req), { ...req.body, updatedAt: now() });
+  if (!asset) { res.status(404).json({ error: "Asset not found" }); return; }
+  await repository.logActivity("admin", "asset_updated", `${asset.type}: ${asset.name}`, asset.agentId);
+  res.json(asset);
+}));
+
+router.get("/settings/ai-providers", (_req, res) => {
+  res.json(aiRouter.settings());
+});
 router.get("/dashboard/summary", asyncRoute(async (_req, res) => {
   res.json(await repository.dashboardSummary());
 }));
@@ -26,7 +57,7 @@ router.get("/inbox", asyncRoute(async (_req, res) => {
 }));
 
 router.post("/inbox/message", asyncRoute(async (req, res) => {
-  const message: InboxMessage = { id: crypto.randomUUID(), status: "new", createdAt: now(), ...req.body };
+  const message: InboxMessage = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, status: "new", createdAt: now(), ...req.body };
   const created = await repository.createMessage(message);
   await repository.logActivity("admin", "message_created", `Manual message from ${message.senderName}`);
   res.status(201).json(created);
@@ -52,6 +83,7 @@ router.post("/inbox/:id/classify", asyncRoute(async (req, res) => {
   } else {
     await repository.createLead({
       id: crypto.randomUUID(),
+      agentId: message.agentId || activeAgentId,
       name: message.senderName,
       company: message.senderCompany,
       role: message.senderRole,
@@ -108,7 +140,7 @@ router.get("/leads", asyncRoute(async (_req, res) => {
   res.json(await repository.listLeads());
 }));
 router.post("/leads", asyncRoute(async (req, res) => {
-  const lead: Lead = { id: crypto.randomUUID(), relationshipHistory: [], leadScore: "C", status: "new", ...req.body };
+  const lead: Lead = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, relationshipHistory: [], leadScore: "C", status: "new", ...req.body };
   const created = await repository.createLead(lead);
   await repository.logActivity("admin", "lead_created", lead.name);
   res.status(201).json(created);
@@ -130,7 +162,7 @@ router.get("/tasks", asyncRoute(async (_req, res) => {
   res.json(await repository.listTasks());
 }));
 router.post("/tasks", asyncRoute(async (req, res) => {
-  const task: AgentTask = { id: crypto.randomUUID(), createdAt: now(), status: "new", priority: "medium", ...req.body };
+  const task: AgentTask = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, createdAt: now(), status: "new", priority: "medium", ...req.body };
   const created = await repository.createTask(task);
   await repository.logActivity("admin", "task_created", task.title);
   res.status(201).json(created);
@@ -162,7 +194,7 @@ router.get("/memory", asyncRoute(async (_req, res) => {
   res.json(await repository.listMemory());
 }));
 router.post("/memory", asyncRoute(async (req, res) => {
-  const entry: MemoryEntry = { id: crypto.randomUUID(), pastInteractions: [], trustLevel: "unknown", updatedAt: now(), ...req.body };
+  const entry: MemoryEntry = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, pastInteractions: [], trustLevel: "unknown", updatedAt: now(), ...req.body };
   const created = await repository.createMemory(entry);
   await repository.logActivity("admin", "memory_created", entry.personName);
   res.status(201).json(created);
@@ -179,7 +211,7 @@ router.get("/knowledge", asyncRoute(async (req, res) => {
   res.json(req.query.q ? searchKnowledge(entries, String(req.query.q)) : entries);
 }));
 router.post("/knowledge", asyncRoute(async (req, res) => {
-  const entry: KnowledgeEntry = { id: crypto.randomUUID(), createdAt: now(), updatedAt: now(), tags: [], reliabilityLevel: "medium", ...req.body };
+  const entry: KnowledgeEntry = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, createdAt: now(), updatedAt: now(), tags: [], reliabilityLevel: "medium", ...req.body };
   const created = await repository.createKnowledge(entry);
   await repository.logActivity("admin", "knowledge_created", entry.title);
   res.status(201).json(created);
@@ -211,5 +243,8 @@ router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => 
 });
 
 export default router;
+
+
+
 
 

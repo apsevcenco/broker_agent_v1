@@ -5,14 +5,52 @@ export type LeadScore = "A+" | "A" | "B" | "C" | "D" | "Spam";
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type TaskStatus = "new" | "in progress" | "waiting approval" | "approved" | "rejected" | "completed" | "failed";
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "done";
+export type AgentStatus = "active" | "planned" | "disabled";
+export type AgentCategory = "yachts" | "charter" | "valuation" | "support" | "car_rental" | "concierge" | "marketing" | "research" | "compliance";
+export type AssetType = "yacht" | "vehicle" | "aircraft" | "villa" | "service" | "other";
+
+export interface AgentDefinition {
+  id: string;
+  name: string;
+  slug: string;
+  status: AgentStatus;
+  category: AgentCategory;
+  description: string;
+  riskLevel: RiskLevel;
+  defaultTone: string;
+  systemRules: string[];
+  allowedActions: string[];
+  blockedActions: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ManagedAsset {
+  id: string;
+  agentId?: string;
+  type: AssetType;
+  name: string;
+  brand?: string;
+  model?: string;
+  year?: number;
+  location?: string;
+  status: string;
+  ownerContactId?: string;
+  notes?: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface InboxMessage {
   id: string;
+  agentId?: string;
   source: Source;
   senderName: string;
   senderCompany?: string;
   senderRole: LeadRole;
   body: string;
+  relatedAssetId?: string;
   relatedYacht?: string;
   relatedDeal?: string;
   urgency: Urgency;
@@ -24,6 +62,7 @@ export interface InboxMessage {
 
 export interface Lead {
   id: string;
+  agentId?: string;
   name: string;
   company?: string;
   email?: string;
@@ -47,6 +86,7 @@ export interface Lead {
 
 export interface AgentTask {
   id: string;
+  agentId?: string;
   type: string;
   title: string;
   description: string;
@@ -54,22 +94,26 @@ export interface AgentTask {
   priority: Urgency;
   relatedLeadId?: string;
   relatedMessageId?: string;
+  relatedAssetId?: string;
   createdAt: string;
 }
 
 export interface ApprovalItem {
   id: string;
+  agentId?: string;
   type: string;
   title: string;
   payload: string;
   status: ApprovalStatus;
   riskLevel: RiskLevel;
   relatedMessageId?: string;
+  relatedAssetId?: string;
   createdAt: string;
 }
 
 export interface MemoryEntry {
   id: string;
+  agentId?: string;
   personName: string;
   company?: string;
   role: string;
@@ -77,6 +121,7 @@ export interface MemoryEntry {
   trustLevel: "unknown" | "low" | "medium" | "high";
   pastInteractions: string[];
   preferredCommunicationStyle?: string;
+  knownAssetInterests?: string;
   knownYachtInterests?: string;
   dealHistory?: string;
   warnings?: string;
@@ -87,6 +132,7 @@ export interface MemoryEntry {
 
 export interface KnowledgeEntry {
   id: string;
+  agentId?: string;
   title: string;
   category: string;
   summary: string;
@@ -100,8 +146,28 @@ export interface KnowledgeEntry {
 
 export interface ActivityLog {
   id: string;
+  agentId?: string;
   action: string;
   actor: "admin" | "agent" | "system";
   details: string;
   createdAt: string;
+}
+
+export type AiTaskType = "conversation_reply" | "legal_risk_review" | "document_analysis" | "market_research" | "lead_scoring" | "memory_extraction" | "support_debug" | "code_fix_prompt" | "summarization" | "translation" | "classification";
+export type AiProviderName = "openai" | "anthropic" | "gemini" | "perplexity" | "local" | "mock";
+
+export interface AiProviderSetting {
+  provider: AiProviderName;
+  enabled: boolean;
+  configured: boolean;
+  strengths: AiTaskType[];
+}
+
+export interface AiRoutingSettings {
+  defaultProvider: AiProviderName;
+  fallbackProvider: AiProviderName;
+  costPriority: "low" | "medium" | "high";
+  qualityPriority: "standard" | "high" | "critical";
+  taskProviders: Record<AiTaskType, AiProviderName[]>;
+  providers: AiProviderSetting[];
 }

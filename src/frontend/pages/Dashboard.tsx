@@ -7,8 +7,10 @@ export function Dashboard() {
   useEffect(() => { api("/api/dashboard/summary").then(setData); }, []);
   if (!data) return null;
   return <>
-    <PageHeader title="Dashboard" subtitle="Internal command center for supervised yacht brokerage work." />
+    <PageHeader title="Dashboard" subtitle="Global command center for supervised luxury mobility agents." />
     <section className="stats-grid">
+      <Stat label="Agents" value={`${data.activeAgents || 0}/${data.totalAgents || 0}`} />
+      <Stat label="Assets" value={data.totalAssets || 0} />
       <Stat label="Total leads" value={data.totalLeads} />
       <Stat label="Hot leads" value={data.hotLeads} />
       <Stat label="Pending tasks" value={data.pendingTasks} />

@@ -1,11 +1,15 @@
-﻿import type { ActivityLog, AgentTask, ApprovalItem, InboxMessage, KnowledgeEntry, Lead, MemoryEntry } from "../../shared/types";
+﻿import type { ActivityLog, AgentDefinition, AgentTask, ApprovalItem, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
 import { dashboardSummary as memoryDashboardSummary, logActivity as memoryLogActivity, store } from "./store";
 import { supabase } from "./supabaseClient";
 import {
   activityFromRow,
   activityToRow,
+  agentFromRow,
+  agentToRow,
   approvalFromRow,
   approvalToRow,
+  assetFromRow,
+  assetToRow,
   knowledgeFromRow,
   knowledgeToRow,
   leadFromRow,
@@ -42,9 +46,42 @@ async function updateRow<T>(table: string, id: string, patch: Record<string, unk
 export const repository = {
   usesSupabase: Boolean(supabase),
 
+  async listAgents() {
+    return supabase ? selectRows("agents", agentFromRow) : store.agents;
+  },
+  async findAgentBySlug(slug: string) {
+    const agents = await this.listAgents();
+    return agents.find((agent) => agent.slug === slug) || null;
+  },
+  async createAgent(agent: AgentDefinition) {
+    if (!supabase) { store.agents.unshift(agent); return agent; }
+    return insertRow("agents", agentToRow(agent), agentFromRow);
+  },
+
+  async listAssets() {
+    return supabase ? selectRows("assets", assetFromRow) : store.assets;
+  },
+  async createAsset(asset: ManagedAsset) {
+    if (!supabase) { store.assets.unshift(asset); return asset; }
+    return insertRow("assets", assetToRow(asset), assetFromRow);
+  },
+  async updateAsset(id: string, patch: Partial<ManagedAsset>) {
+    if (!supabase) {
+      const asset = store.assets.find((item) => item.id === id);
+      if (!asset) return null;
+      Object.assign(asset, patch);
+      return asset;
+    }
+    const current = (await this.listAssets()).find((asset) => asset.id === id);
+    if (!current) return null;
+    return updateRow("assets", id, assetToRow({ ...current, ...patch }), assetFromRow);
+  },
+
   async dashboardSummary() {
     if (!supabase) return memoryDashboardSummary();
-    const [messages, leads, tasks, approvals, knowledge, activity] = await Promise.all([
+    const [agents, assets, messages, leads, tasks, approvals, knowledge, activity] = await Promise.all([
+      this.listAgents(),
+      this.listAssets(),
       this.listMessages(),
       this.listLeads(),
       this.listTasks(),
@@ -53,6 +90,9 @@ export const repository = {
       this.listActivity()
     ]);
     return {
+      totalAgents: agents.length,
+      activeAgents: agents.filter((agent) => agent.status === "active").length,
+      totalAssets: assets.length,
       totalLeads: leads.length,
       hotLeads: leads.filter((lead) => lead.leadScore === "A+" || lead.leadScore === "A").length,
       pendingTasks: tasks.filter((task) => ["new", "in progress", "waiting approval"].includes(task.status)).length,
@@ -65,9 +105,9 @@ export const repository = {
     };
   },
 
-  async logActivity(actor: ActivityLog["actor"], action: string, details: string) {
-    const activity: ActivityLog = { id: crypto.randomUUID(), actor, action, details, createdAt: new Date().toISOString() };
-    if (!supabase) return memoryLogActivity(actor, action, details);
+  async logActivity(actor: ActivityLog["actor"], action: string, details: string, agentId?: string) {
+    const activity: ActivityLog = { id: crypto.randomUUID(), agentId, actor, action, details, createdAt: new Date().toISOString() };
+    if (!supabase) return memoryLogActivity(actor, action, details, agentId);
     await insertRow("agent_activity_logs", activityToRow(activity), activityFromRow);
   },
 
@@ -153,11 +193,11 @@ export const repository = {
   },
 
   async listMemory() {
-    return supabase ? selectRows("broker_memory", memoryFromRow) : store.memory;
+    return supabase ? selectRows("memory_entries", memoryFromRow) : store.memory;
   },
   async createMemory(entry: MemoryEntry) {
     if (!supabase) { store.memory.unshift(entry); return entry; }
-    return insertRow("broker_memory", memoryToRow(entry), memoryFromRow);
+    return insertRow("memory_entries", memoryToRow(entry), memoryFromRow);
   },
   async updateMemory(id: string, patch: Partial<MemoryEntry>) {
     if (!supabase) {
@@ -168,7 +208,7 @@ export const repository = {
     }
     const current = (await this.listMemory()).find((entry) => entry.id === id);
     if (!current) return null;
-    return updateRow("broker_memory", id, memoryToRow({ ...current, ...patch }), memoryFromRow);
+    return updateRow("memory_entries", id, memoryToRow({ ...current, ...patch }), memoryFromRow);
   },
 
   async listKnowledge() {

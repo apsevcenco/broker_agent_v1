@@ -2,10 +2,11 @@
 import { api, patchJson, postJson } from "../services/api";
 import { Badge, Empty, PageHeader } from "../components/UI";
 
-export function Leads() { return <SimpleList title="Leads CRM" subtitle="Profiles, qualification and relationship history." endpoint="/api/leads" create={{ name: "New Lead", role: "buyer", source: "manual", status: "new", leadScore: "C" }} fields={["name", "company", "role", "leadScore", "interestType", "region"]} />; }
-export function Tasks() { return <SimpleList title="Tasks" subtitle="Human review, follow-ups and broker work queue." endpoint="/api/tasks" create={{ type: "human review required", title: "Review new opportunity", description: "Check qualification and next step.", priority: "medium" }} fields={["title", "type", "status", "priority"]} />; }
-export function Memory() { return <SimpleList title="Broker Memory" subtitle="Editable relationship memory protected from automatic overwrite." endpoint="/api/memory" create={{ personName: "New Contact", role: "broker", relationshipStatus: "new", trustLevel: "unknown" }} fields={["personName", "company", "role", "relationshipStatus", "trustLevel"]} />; }
-export function Knowledge() { return <SimpleList title="Knowledge Base" subtitle="Manual professional yacht industry knowledge entries." endpoint="/api/knowledge" create={{ title: "New Entry", category: "Yacht Brokerage", summary: "", content: "", reliabilityLevel: "medium", tags: [] }} fields={["title", "category", "summary", "reliabilityLevel"]} />; }
+export function Leads() { return <SimpleList title="Leads / CRM" subtitle="Shared profiles, qualification and relationship history across agents." endpoint="/api/leads" create={{ name: "New Lead", role: "buyer", source: "manual", status: "new", leadScore: "C" }} fields={["name", "company", "role", "leadScore", "interestType", "region"]} />; }
+export function Tasks() { return <SimpleList title="Tasks" subtitle="Shared human review, follow-ups and specialist agent work queue." endpoint="/api/tasks" create={{ type: "human review required", title: "Review new opportunity", description: "Check qualification and next step.", priority: "medium" }} fields={["title", "type", "status", "priority"]} />; }
+export function Memory() { return <SimpleList title="Memory" subtitle="Shared editable relationship memory protected from automatic overwrite." endpoint="/api/memory" create={{ personName: "New Contact", role: "broker", relationshipStatus: "new", trustLevel: "unknown" }} fields={["personName", "company", "role", "relationshipStatus", "trustLevel"]} />; }
+export function Knowledge() { return <SimpleList title="Knowledge Base" subtitle="Shared knowledge entries for luxury mobility agents." endpoint="/api/knowledge" create={{ title: "New Entry", category: "Luxury Mobility", summary: "", content: "", reliabilityLevel: "medium", tags: [] }} fields={["title", "category", "summary", "reliabilityLevel"]} />; }
+export function Assets() { return <SimpleList title="Assets" subtitle="Shared asset registry for yachts, vehicles, aircraft, villas, services and future modules." endpoint="/api/assets" create={{ type: "yacht", name: "New Asset", status: "draft", metadata: {} }} fields={["type", "name", "brand", "model", "year", "location", "status", "notes"]} />; }
 
 function SimpleList({ title, subtitle, endpoint, create, fields }: { title: string; subtitle: string; endpoint: string; create: any; fields: string[] }) {
   const [items, setItems] = useState<any[]>([]);
@@ -16,7 +17,7 @@ function SimpleList({ title, subtitle, endpoint, create, fields }: { title: stri
   return <>
     <PageHeader title={title} subtitle={subtitle} />
     <div className="toolbar"><button onClick={add}>Create</button></div>
-    <section>{items.length ? items.map(item => <article className="item" key={item.id}>{fields.map(field => <label key={field}><span>{field}</span><input value={Array.isArray(item[field]) ? item[field].join(", ") : item[field] || ""} onChange={e => patch(item.id, field, e.target.value)} /></label>)}</article>) : <Empty text="Nothing here yet." />}</section>
+    <section>{items.length ? items.map(item => <article className="item" key={item.id}>{fields.map(field => <label key={field}><span>{field}</span><input value={Array.isArray(item[field]) ? item[field].join(", ") : typeof item[field] === "object" && item[field] ? JSON.stringify(item[field]) : item[field] || ""} onChange={e => patch(item.id, field, e.target.value)} /></label>)}</article>) : <Empty text="Nothing here yet." />}</section>
   </>;
 }
 
@@ -35,5 +36,12 @@ export function ActivityLog() {
 }
 
 export function Settings() {
-  return <><PageHeader title="Settings" subtitle="Safe V1 controls and future platform placeholders." /><section className="settings"><label>Agent mode<select defaultValue="draft_only"><option value="draft_only">draft only</option><option disabled>approval required</option><option disabled>future auto mode disabled</option></select></label><label>Default language<input defaultValue="English" /></label><label>Default tone<input defaultValue="Senior, discreet, concise" /></label><label>Risk threshold<select defaultValue="medium"><option>low</option><option>medium</option><option>high</option></select></label><label>Company name<input defaultValue="Yacht AI Broker Engine" /></label><label>Connected platforms<input defaultValue="PDYE, YachtWorth, Gmail, LinkedIn placeholders" /></label></section></>;
+  return <><PageHeader title="Settings" subtitle="Safe V1 controls and future platform placeholders." /><section className="settings"><label>Agent mode<select defaultValue="draft_only"><option value="draft_only">draft only</option><option disabled>approval required</option><option disabled>future auto mode disabled</option></select></label><label>Default language<input defaultValue="English" /></label><label>Default tone<input defaultValue="Senior, discreet, concise" /></label><label>Risk threshold<select defaultValue="medium"><option>low</option><option>medium</option><option>high</option></select></label><label>Company name<input defaultValue="Luxury Mobility AI OS" /></label><label>Connected platforms<input defaultValue="PDYE, YachtWorth, Render, Supabase placeholders" /></label><a className="button-link" href="/settings/ai-providers">AI Providers</a></section></>;
+}
+
+export function AiProviders() {
+  const [settings, setSettings] = useState<any>();
+  useEffect(() => { void api("/api/settings/ai-providers").then(setSettings); }, []);
+  if (!settings) return null;
+  return <><PageHeader title="AI Providers" subtitle="Provider-agnostic routing by task type with mock fallback in V1." /><section className="stats-grid"><div className="stat"><span>Default</span><strong>{settings.defaultProvider}</strong></div><div className="stat"><span>Fallback</span><strong>{settings.fallbackProvider}</strong></div><div className="stat"><span>Cost</span><strong>{settings.costPriority}</strong></div><div className="stat"><span>Quality</span><strong>{settings.qualityPriority}</strong></div></section><section>{settings.providers.map((p:any) => <article className="item" key={p.provider}><div><h3>{p.provider}</h3><p>{p.strengths.join(", ")}</p><div className="meta"><Badge tone={p.configured ? "green" : "blue"}>{p.configured ? "configured" : "mock/fallback"}</Badge></div></div></article>)}</section></>;
 }

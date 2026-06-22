@@ -42,3 +42,5 @@ p { color: #526173; }
 pre { white-space: pre-wrap; background: #f8fafc; padding: 12px; border-radius: 6px; color: #334155; max-width: 900px; }
 .settings { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 18px; }
 @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .sidebar { position: static; height: auto; } .stats-grid, .two-col, .form-grid, .settings { grid-template-columns: 1fr; } .item { grid-template-columns: 1fr; } }
+.panel { background: #fff; border: 1px solid #e3e7ee; border-radius: 8px; padding: 16px; }
+.button-link { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 10px 14px; border-radius: 6px; background: #b8924b; color: #111827; font-weight: 700; text-decoration: none; }

@@ -1,29 +1,29 @@
 ﻿# Roadmap
 
-## V1
+## Phase 1: Core OS + Yacht Broker Agent V1
 
-- Local dashboard and API.
-- Manual inbox intake.
-- Rule-based classification, scoring and risk assessment.
-- Draft replies only.
-- Approval queue.
-- Tasks, memory, knowledge and activity logs.
+Shared dashboard, agents registry, inbox, CRM, approvals, tasks, memory, knowledge, assets and the active Yacht Broker Agent.
 
-## V1.1
+## Phase 2: Knowledge Base + Memory Engine
 
-- Supabase persistence.
-- Admin authentication.
-- Better filters and saved views.
-- Editable approval payloads with audit trail.
+Improve search, memory suggestions, approval history, relationship intelligence and agent-scoped knowledge.
 
-## V2
+## Phase 3: PDYE Connector
 
-- OpenAI LLM connector behind approval workflow.
-- PDYE Deal Room connector.
-- YachtWorth valuation connector.
-- Gmail draft creation only.
-- Embeddings-backed knowledge search.
+Prepare safe draft-only PDYE Deal Room actions with explicit approval controls.
 
-## Not in V1
+## Phase 4: YachtWorth Support Agent
 
-No real social connectors, no automatic sending, no scraping, no paid database ingestion, no public chatbot and no auto-disclosure.
+Support triage, QA flows, Codex fix preparation and issue-to-task conversion.
+
+## Phase 5: Car Rental Agent
+
+Fleet and vehicle profiles, pricing, deposits, insurance, chauffeur pricing, transfers, events and rental contract drafts.
+
+## Phase 6: Marketing / Research Agents
+
+Campaign planning, social drafts, market research and lead generation support.
+
+## Phase 7: Multi-Agent Workflows
+
+Coordinated workflows across brokerage, charter, valuation, support, marketing and compliance, always constrained by approval rules.

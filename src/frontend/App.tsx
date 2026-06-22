@@ -2,19 +2,28 @@
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./pages/Dashboard";
 import { Inbox } from "./pages/Inbox";
-import { ActivityLog, Approvals, Knowledge, Leads, Memory, Settings, Tasks } from "./pages/ListPages";
+import { AgentDetail, Agents } from "./pages/Agents";
+import { ActivityLog, AiProviders, Approvals, Assets, Knowledge, Leads, Memory, Settings, Tasks } from "./pages/ListPages";
 
 const routes: Record<string, () => ReactNode> = {
   "/": Dashboard,
   "/dashboard": Dashboard,
+  "/agents": Agents,
+  "/agents/yacht-broker": () => <AgentDetail slug="yacht-broker" />,
+  "/agents/car-rental": () => <AgentDetail slug="car-rental" />,
+  "/agents/yachtworth-support": () => <AgentDetail slug="yachtworth-support" />,
+  "/agents/charter": () => <AgentDetail slug="charter" />,
+  "/agents/marketing": () => <AgentDetail slug="marketing" />,
   "/inbox": Inbox,
   "/leads": Leads,
   "/tasks": Tasks,
   "/approvals": Approvals,
   "/memory": Memory,
   "/knowledge": Knowledge,
+  "/assets": Assets,
   "/activity": ActivityLog,
-  "/settings": Settings
+  "/settings": Settings,
+  "/settings/ai-providers": AiProviders
 };
 
 export function App() {

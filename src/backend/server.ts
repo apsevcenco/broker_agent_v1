@@ -18,7 +18,7 @@ app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use("/api", apiRouter);
 
-app.get("/health", (_req, res) => res.json({ ok: true, service: "Yacht AI Broker Engine" }));
+app.get("/health", (_req, res) => res.json({ ok: true, service: "Luxury Mobility AI OS" }));
 
 if (existsSync(frontendDist)) {
   app.use(express.static(frontendDist));
@@ -28,5 +28,6 @@ if (existsSync(frontendDist)) {
 }
 
 app.listen(port, () => {
-  console.log(`Yacht AI Broker Engine running on http://localhost:${port}`);
+  console.log(`Luxury Mobility AI OS running on http://localhost:${port}`);
 });
+
