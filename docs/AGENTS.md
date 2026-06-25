@@ -23,3 +23,16 @@ Status: planned. Handles content planning, social media drafts, campaigns and le
 ## Future Agents
 
 Luxury Concierge Agent, Yacht Valuation Agent, Research Agent and Legal/Compliance Assistant can be added through the same registry and shared core.
+
+## Client Acquisition Agent
+
+Status: planned. Handles online prospect research, social lead discovery, compliant outreach drafts, chat response preparation and follow-up planning.
+
+Safety boundaries:
+
+- No automatic sending in V1.
+- No automatic posting in groups or chats.
+- No platform scraping or rate-limit bypassing.
+- No impersonation.
+- No bought contact lists.
+- All outbound messages require admin approval.

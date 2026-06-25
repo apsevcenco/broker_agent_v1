@@ -27,3 +27,7 @@ Campaign planning, social drafts, market research and lead generation support.
 ## Phase 7: Multi-Agent Workflows
 
 Coordinated workflows across brokerage, charter, valuation, support, marketing and compliance, always constrained by approval rules.
+
+## Client Acquisition Agent Track
+
+Add safe online prospect research, outreach drafts, campaign queues and chat reply preparation. Keep all outbound actions human-approved and platform-compliant.

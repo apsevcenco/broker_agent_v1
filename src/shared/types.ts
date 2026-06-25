@@ -6,7 +6,7 @@ export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type TaskStatus = "new" | "in progress" | "waiting approval" | "approved" | "rejected" | "completed" | "failed";
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "done";
 export type AgentStatus = "active" | "planned" | "disabled";
-export type AgentCategory = "yachts" | "charter" | "valuation" | "support" | "car_rental" | "concierge" | "marketing" | "research" | "compliance";
+export type AgentCategory = "yachts" | "charter" | "valuation" | "support" | "car_rental" | "concierge" | "marketing" | "client_acquisition" | "research" | "compliance";
 export type AssetType = "yacht" | "vehicle" | "aircraft" | "villa" | "service" | "other";
 
 export interface AgentDefinition {
@@ -171,3 +171,4 @@ export interface AiRoutingSettings {
   taskProviders: Record<AiTaskType, AiProviderName[]>;
   providers: AiProviderSetting[];
 }
+

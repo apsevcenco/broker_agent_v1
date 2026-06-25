@@ -77,7 +77,23 @@ export const defaultAgentDefinitions: AgentDefinition[] = [
     blockedActions: ["publish automatically", "use confidential asset data", "scrape paid sources"],
     createdAt: now(),
     updatedAt: now()
+  },
+  {
+    id: "client-acquisition-agent",
+    name: "Client Acquisition Agent",
+    slug: "client-acquisition",
+    status: "planned",
+    category: "client_acquisition",
+    description: "Online prospect research, social lead discovery, compliant outreach drafts, chat response preparation and campaign follow-up planning.",
+    riskLevel: "high",
+    defaultTone: "Discreet luxury business development specialist, human, concise and non-spammy.",
+    systemRules: ["Draft only in V1", "Respect platform rules", "No spam or mass messaging", "Human approval before any external message", "Do not impersonate a human", "Do not scrape restricted or paid sources"],
+    allowedActions: ["research public prospects", "suggest target segments", "draft outreach", "draft chat replies", "create follow-up tasks", "suggest lead score"],
+    blockedActions: ["send messages automatically", "join chats automatically", "post ads automatically", "scrape platforms", "bypass rate limits", "impersonate people", "use bought contact lists"],
+    createdAt: now(),
+    updatedAt: now()
   }
 ];
 
 export const activeAgentId = "yacht-broker-agent";
+

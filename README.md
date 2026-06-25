@@ -26,6 +26,7 @@ Yacht Broker Agent is active in V1. It handles yacht brokerage, off-market deals
 - YachtWorth Support Agent
 - Charter Agent
 - Marketing Agent
+- Client Acquisition Agent
 - Future concierge, valuation, research and compliance assistants
 
 ## Run Locally
@@ -100,3 +101,5 @@ Allowed without approval: classify message, create draft task, suggest reply, su
 Requires approval: send message, disclose confidential asset data, change access rights, discuss commission, send contract, send offer, approve a client, connect to external platform.
 
 Blocked in V1: automatic social/WhatsApp sending, scraping, paid database ingestion, autonomous deal approval, autonomous legal advice.
+
+

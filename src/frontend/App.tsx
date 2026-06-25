@@ -14,6 +14,7 @@ const routes: Record<string, () => ReactNode> = {
   "/agents/yachtworth-support": () => <AgentDetail slug="yachtworth-support" />,
   "/agents/charter": () => <AgentDetail slug="charter" />,
   "/agents/marketing": () => <AgentDetail slug="marketing" />,
+  "/agents/client-acquisition": () => <AgentDetail slug="client-acquisition" />,
   "/inbox": Inbox,
   "/leads": Leads,
   "/tasks": Tasks,

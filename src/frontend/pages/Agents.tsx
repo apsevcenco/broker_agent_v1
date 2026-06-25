@@ -25,6 +25,7 @@ export function AgentDetail({ slug }: { slug: string }) {
   if (!agent) return null;
   const isCarRental = agent.slug === "car-rental";
   const isYachtBroker = agent.slug === "yacht-broker";
+  const isClientAcquisition = agent.slug === "client-acquisition";
   return <>
     <PageHeader title={agent.name} subtitle={agent.description} />
     <section className="two-col">
@@ -33,5 +34,6 @@ export function AgentDetail({ slug }: { slug: string }) {
     </section>
     {isYachtBroker && <section><h2>Yacht Broker Agent</h2><p>This is the first active module. It owns yacht-specific brokerage logic while using shared inbox, CRM, memory, tasks, approvals, assets and knowledge.</p></section>}
     {isCarRental && <section><h2>Planned Module</h2><p>Future architecture covers fleet database, vehicle profiles, daily/weekly/monthly prices, deposits, insurance, included kilometers, chauffeur pricing, airport transfers, weddings, delivery/pickup, availability, rental contract drafts and client qualification.</p></section>}
+    {isClientAcquisition && <section><h2>Safe Outreach Module</h2><p>This planned agent researches public prospects, prepares compliant outreach drafts, suggests target segments and creates follow-up tasks. In V1 it must not send messages, join chats, post ads, scrape platforms, bypass limits or impersonate people without explicit human-controlled integrations and approval.</p></section>}
   </>;
 }
