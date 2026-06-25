@@ -10,6 +10,7 @@ import { searchKnowledge } from "../../agent/knowledgeSearch";
 import type { AgentTask, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
 import { aiRouter } from "../../ai/aiRouter";
 import { activeAgentId } from "../data/agents";
+import { findAgentKnowledgeProfile } from "../data/agentProfiles";
 import { repository } from "../data/repository";
 
 const router = Router();
@@ -28,6 +29,11 @@ router.get("/agents/:slug", asyncRoute(async (req, res) => {
   const agent = await repository.findAgentBySlug(String(req.params.slug));
   if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
   res.json(agent);
+}));
+router.get("/agents/:slug/profile", asyncRoute(async (req, res) => {
+  const agent = await repository.findAgentBySlug(String(req.params.slug));
+  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  res.json({ agent, profile: findAgentKnowledgeProfile(agent.slug) });
 }));
 router.get("/agents/:slug/workspace", asyncRoute(async (req, res) => {
   const agent = await repository.findAgentBySlug(String(req.params.slug));
@@ -278,6 +284,7 @@ router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => 
 });
 
 export default router;
+
 
 
 

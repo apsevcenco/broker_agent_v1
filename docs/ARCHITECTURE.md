@@ -51,3 +51,13 @@ Admin notes remain authoritative. Agent-learned observations should be treated a
 ## Agent Inbox Routing
 
 Inbox messages can be assigned to a specific agent at creation time. Downstream classification, lead creation, task generation, approvals and activity logs preserve the same `agent_id`, so each agent workspace receives only its own operational context.
+
+## Agent Bootstrap Profiles
+
+Relationship memory stores people and organizations. Agent bootstrap profiles store the initial professional knowledge each agent needs before it sees any leads: mission, domain knowledge, workflows, qualification signals, vocabulary, risk rules and blocked behaviors.
+
+The app exposes bootstrap profile context through:
+
+- `GET /api/agents/:slug/profile`
+
+The same core profile knowledge is also seeded into `knowledge_entries` as verified internal bootstrap material.
