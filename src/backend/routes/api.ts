@@ -6,11 +6,12 @@ import { suggestMemoryUpdate } from "../../agent/memorySuggestions";
 import { assessRisk } from "../../agent/riskAssessment";
 import { suggestReply } from "../../agent/suggestReply";
 import { generateTasks } from "../../agent/taskGenerator";
-import { searchKnowledge } from "../../agent/knowledgeSearch";
+import { buildKnowledgeQuery, searchKnowledge } from "../../agent/knowledgeSearch";
 import type { AgentTask, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
 import { aiRouter } from "../../ai/aiRouter";
 import { activeAgentId } from "../data/agents";
 import { findAgentKnowledgeProfile } from "../data/agentProfiles";
+import { findKnowledgeTaxonomy } from "../data/knowledgeTaxonomy";
 import { repository } from "../data/repository";
 
 const router = Router();
@@ -34,6 +35,11 @@ router.get("/agents/:slug/profile", asyncRoute(async (req, res) => {
   const agent = await repository.findAgentBySlug(String(req.params.slug));
   if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
   res.json({ agent, profile: findAgentKnowledgeProfile(agent.slug) });
+}));
+router.get("/agents/:slug/knowledge-taxonomy", asyncRoute(async (req, res) => {
+  const agent = await repository.findAgentBySlug(String(req.params.slug));
+  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  res.json({ agent, taxonomy: findKnowledgeTaxonomy(agent.slug) });
 }));
 router.get("/agents/:slug/context", asyncRoute(async (req, res) => {
   const agent = await repository.findAgentBySlug(String(req.params.slug));
@@ -191,7 +197,9 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
   if (!message) { res.status(404).json({ error: "Message not found" }); return; }
 
   const classification = message.classification || classifyMessage(message);
-  const draft = suggestReply(message, classification);
+  const knowledge = byAgent(await repository.listKnowledge(), message.agentId || activeAgentId);
+  const relevantKnowledge = searchKnowledge(knowledge, buildKnowledgeQuery({ ...message, classification }), 5);
+  const draft = suggestReply(message, classification, relevantKnowledge);
   message.status = "reply suggested";
   await repository.updateMessage(message);
 
@@ -317,6 +325,9 @@ router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => 
 });
 
 export default router;
+
+
+
 
 
 

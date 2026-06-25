@@ -1,4 +1,4 @@
-﻿import type { InboxMessage } from "../shared/types";
+﻿import type { InboxMessage, KnowledgeEntry } from "../shared/types";
 import { assessRisk } from "./riskAssessment";
 
 const templates: Record<string, string> = {
@@ -17,10 +17,16 @@ const templates: Record<string, string> = {
   "polite rejection": "Thank you for reaching out. Based on the current information, this does not appear to be a fit for our process, but I appreciate the introduction."
 };
 
-export function suggestReply(message: InboxMessage, classification: string): string {
+function summarizeKnowledge(entries: KnowledgeEntry[]) {
+  if (!entries.length) return "No knowledge entries matched this draft.";
+  return entries.slice(0, 5).map((entry, index) => `${index + 1}. ${entry.title} (${entry.category}, ${entry.reliabilityLevel}) - ${entry.summary}`).join("\n");
+}
+
+export function suggestReply(message: InboxMessage, classification: string, knowledge: KnowledgeEntry[] = []): string {
   const risk = assessRisk(message);
   const base = templates[classification] || templates["buyer inquiry"];
-  return `${base}\n\nInternal note: risk level ${risk}. This is a draft only and requires admin approval before any external use.`;
+  const knowledgeNote = summarizeKnowledge(knowledge);
+  return `${base}\n\nKnowledge used:\n${knowledgeNote}\n\nInternal note: risk level ${risk}. This is a draft only and requires admin approval before any external use. Do not present legal, tax, flag-state, insurance or class guidance as final advice without specialist review.`;
 }
 
 export const suggestedReplyTemplates = templates;
