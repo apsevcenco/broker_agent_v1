@@ -25,6 +25,22 @@ function validate(response: IntelligenceResponse): IntelligenceResponse {
   if (!response.execution)  throw new Error("[CIE] Response missing execution layer");
   if (!response.learning)   throw new Error("[CIE] Response missing learning layer");
   if (!response.draft)      throw new Error("[CIE] Response missing draft layer");
+
+  const plan = response.execution.toolPlan;
+  if (plan !== undefined) {
+    if (!Array.isArray(plan.toolRequests)) {
+      throw new Error("[CIE] toolPlan.toolRequests must be an array");
+    }
+    if (typeof plan.summary !== "string") {
+      throw new Error("[CIE] toolPlan.summary must be a string");
+    }
+    console.log(
+      `[CIE] ToolPlan: ${plan.toolRequests.length} request(s),` +
+      ` highestRisk=${plan.highestRiskLevel},` +
+      ` requiresApproval=${plan.requiresApproval}`
+    );
+  }
+
   return response;
 }
 

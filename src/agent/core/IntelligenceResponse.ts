@@ -1,6 +1,7 @@
 import type { RecommendedDecision } from "./RecommendedDecision";
 import type { ExecutionPlan } from "./ExecutionPlan";
 import type { LearningUpdate } from "./LearningUpdate";
+import type { ToolPlan } from "./ToolPlan";
 
 // What the engine perceived about the input
 export interface PerceptionLayer {
@@ -42,6 +43,7 @@ export interface ExecutionLayer {
   draftContent: string;
   draftProvider: string;
   draftMocked: boolean;
+  toolPlan?: ToolPlan;
 }
 
 // What the engine learned from this interaction
