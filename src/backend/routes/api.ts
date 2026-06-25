@@ -420,6 +420,41 @@ router.patch("/tasks/:id", asyncRoute(async (req, res) => {
   res.json(task);
 }));
 
+router.get("/cases", asyncRoute(async (_req, res) => {
+  const [cases, allEvents, allParticipants] = await Promise.all([
+    repository.listCases(),
+    repository.listCaseEvents(),
+    repository.listCaseParticipants()
+  ]);
+
+  const eventsByCaseId = new Map<string, typeof allEvents>();
+  for (const e of allEvents) {
+    const list = eventsByCaseId.get(e.caseId) ?? [];
+    list.push(e);
+    eventsByCaseId.set(e.caseId, list);
+  }
+
+  const participantCountByCaseId = new Map<string, number>();
+  for (const p of allParticipants) {
+    participantCountByCaseId.set(p.caseId, (participantCountByCaseId.get(p.caseId) ?? 0) + 1);
+  }
+
+  const enriched = cases.map(c => {
+    const events = eventsByCaseId.get(c.id) ?? [];
+    const latest = events[0]; // store uses unshift / selectRows orders newest-first
+    return {
+      ...c,
+      eventCount: events.length,
+      participantCount: participantCountByCaseId.get(c.id) ?? 0,
+      latestEvent: latest
+        ? { eventType: latest.eventType, summary: latest.summary, createdAt: latest.createdAt }
+        : undefined
+    };
+  });
+
+  res.json(enriched);
+}));
+
 router.get("/approvals", asyncRoute(async (req, res) => {
   res.json(byAgent(await repository.listApprovals(), req.query.agentId));
 }));

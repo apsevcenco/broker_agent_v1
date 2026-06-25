@@ -48,6 +48,16 @@ pre { white-space: pre-wrap; background: #f8fafc; padding: 12px; border-radius: 
 .nav-section { color: #3d5570; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 16px 10px 3px; user-select: none; }
 nav a.soon { opacity: 0.45; }
 nav a.soon::after { content: "soon"; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #3d5570; margin-left: auto; }
+.case-card { background: #fff; border: 1px solid #e3e7ee; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+.case-card:hover { border-color: #b8924b; }
+.case-card-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.case-card-title { margin: 0; font-size: 15px; font-weight: 700; }
+.case-card-time { color: #94a3b8; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+.case-card-meta { display: flex; gap: 10px; margin-top: 8px; font-size: 13px; color: #526173; }
+.case-card-latest { display: flex; gap: 6px; align-items: baseline; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f4f8; font-size: 13px; color: #64748b; }
+.case-latest-type { font-weight: 700; color: #334155; white-space: nowrap; flex-shrink: 0; }
+.case-latest-sep { color: #94a3b8; flex-shrink: 0; }
+.case-latest-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ops-case-card { grid-template-columns: minmax(0, 1fr) auto; gap: 20px; }
 .ops-case-header { margin-bottom: 14px; }
 .ops-case-header h3 { margin-bottom: 10px; }

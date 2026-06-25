@@ -14,7 +14,7 @@ const groups: NavGroup[] = [
     group: "Business",
     items: [
       { href: "/goals",  label: "Goals",  Icon: Target,     soon: true },
-      { href: "/cases",  label: "Cases",  Icon: FolderOpen, soon: true },
+      { href: "/cases",  label: "Cases",  Icon: FolderOpen },
       { href: "/leads",  label: "CRM",    Icon: Users }
     ]
   },

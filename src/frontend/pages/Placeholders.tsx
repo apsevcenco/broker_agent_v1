@@ -23,17 +23,6 @@ export function Goals() {
   );
 }
 
-export function Cases() {
-  return (
-    <PlaceholderPage
-      title="Cases"
-      subtitle="The operational unit of business execution."
-      body="Case Runtime V1 is already active — every suggested reply is linked to a Case in the background. The full Case management interface (list, timeline, participants, decisions) is the next major UI milestone."
-      note="Case data is being recorded now. Architecture: docs/architecture/runtime/R01_CASE_RUNTIME.md"
-    />
-  );
-}
-
 export function Experience() {
   return (
     <PlaceholderPage

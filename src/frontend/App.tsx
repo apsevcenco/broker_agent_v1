@@ -5,7 +5,8 @@ import { Inbox } from "./pages/Inbox";
 import { AgentDetail, Agents } from "./pages/Agents";
 import { ActivityLog, AiProviders, Approvals, Assets, Knowledge, Leads, Memory, Settings, Tasks } from "./pages/ListPages";
 import { KnowledgeEngine } from "./pages/KnowledgeEngine";
-import { Cases, Documents, Experience, Goals } from "./pages/Placeholders";
+import { Cases } from "./pages/Cases";
+import { Documents, Experience, Goals } from "./pages/Placeholders";
 
 const routes: Record<string, () => ReactNode> = {
   // Top-level

@@ -302,5 +302,20 @@ export const repository = {
       .maybeSingle();
     if (error) throw error;
     return data ? caseParticipantFromRow(data) : null;
+  },
+
+  async listCases(): Promise<Case[]> {
+    if (!supabase) return [...store.cases];
+    return selectRows("cases", caseFromRow);
+  },
+
+  async listCaseEvents(): Promise<CaseEvent[]> {
+    if (!supabase) return [...store.caseEvents];
+    return selectRows("case_events", caseEventFromRow);
+  },
+
+  async listCaseParticipants(): Promise<CaseParticipant[]> {
+    if (!supabase) return [...store.caseParticipants];
+    return selectRows("case_participants", caseParticipantFromRow);
   }
 };
