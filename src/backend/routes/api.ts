@@ -15,6 +15,7 @@ import { repository } from "../data/repository";
 const router = Router();
 const now = () => new Date().toISOString();
 const routeId = (req: Request) => String(req.params.id);
+const byAgent = <T extends { agentId?: string }>(items: T[], agentId?: unknown) => agentId ? items.filter((item) => item.agentId === String(agentId)) : items;
 const asyncRoute = (handler: (req: Request, res: Response) => Promise<void>) => (req: Request, res: Response, next: NextFunction) => {
   handler(req, res).catch(next);
 };
@@ -28,9 +29,41 @@ router.get("/agents/:slug", asyncRoute(async (req, res) => {
   if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
   res.json(agent);
 }));
+router.get("/agents/:slug/workspace", asyncRoute(async (req, res) => {
+  const agent = await repository.findAgentBySlug(String(req.params.slug));
+  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  const [messages, leads, tasks, approvals, memory, knowledge, assets, activity] = await Promise.all([
+    repository.listMessages(),
+    repository.listLeads(),
+    repository.listTasks(),
+    repository.listApprovals(),
+    repository.listMemory(),
+    repository.listKnowledge(),
+    repository.listAssets(),
+    repository.listActivity()
+  ]);
+  res.json({
+    agent,
+    counts: {
+      inbox: byAgent(messages, agent.id).length,
+      leads: byAgent(leads, agent.id).length,
+      tasks: byAgent(tasks, agent.id).length,
+      approvals: byAgent(approvals, agent.id).filter((item) => item.status === "pending").length,
+      memory: byAgent(memory, agent.id).length,
+      knowledge: byAgent(knowledge, agent.id).length,
+      assets: byAgent(assets, agent.id).length
+    },
+    recent: {
+      memory: byAgent(memory, agent.id).slice(0, 5),
+      tasks: byAgent(tasks, agent.id).slice(0, 5),
+      approvals: byAgent(approvals, agent.id).slice(0, 5),
+      activity: byAgent(activity, agent.id).slice(0, 5)
+    }
+  });
+}));
 
-router.get("/assets", asyncRoute(async (_req, res) => {
-  res.json(await repository.listAssets());
+router.get("/assets", asyncRoute(async (req, res) => {
+  res.json(byAgent(await repository.listAssets(), req.query.agentId));
 }));
 router.post("/assets", asyncRoute(async (req, res) => {
   const asset: ManagedAsset = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, type: "other", name: "New Asset", status: "draft", metadata: {}, createdAt: now(), updatedAt: now(), ...req.body };
@@ -52,8 +85,8 @@ router.get("/dashboard/summary", asyncRoute(async (_req, res) => {
   res.json(await repository.dashboardSummary());
 }));
 
-router.get("/inbox", asyncRoute(async (_req, res) => {
-  res.json(await repository.listMessages());
+router.get("/inbox", asyncRoute(async (req, res) => {
+  res.json(byAgent(await repository.listMessages(), req.query.agentId));
 }));
 
 router.post("/inbox/message", asyncRoute(async (req, res) => {
@@ -136,8 +169,8 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
   res.json(approval);
 }));
 
-router.get("/leads", asyncRoute(async (_req, res) => {
-  res.json(await repository.listLeads());
+router.get("/leads", asyncRoute(async (req, res) => {
+  res.json(byAgent(await repository.listLeads(), req.query.agentId));
 }));
 router.post("/leads", asyncRoute(async (req, res) => {
   const lead: Lead = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, relationshipHistory: [], leadScore: "C", status: "new", ...req.body };
@@ -158,8 +191,8 @@ router.post("/leads/:id/score", asyncRoute(async (req, res) => {
   res.json(lead);
 }));
 
-router.get("/tasks", asyncRoute(async (_req, res) => {
-  res.json(await repository.listTasks());
+router.get("/tasks", asyncRoute(async (req, res) => {
+  res.json(byAgent(await repository.listTasks(), req.query.agentId));
 }));
 router.post("/tasks", asyncRoute(async (req, res) => {
   const task: AgentTask = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, createdAt: now(), status: "new", priority: "medium", ...req.body };
@@ -174,8 +207,8 @@ router.patch("/tasks/:id", asyncRoute(async (req, res) => {
   res.json(task);
 }));
 
-router.get("/approvals", asyncRoute(async (_req, res) => {
-  res.json(await repository.listApprovals());
+router.get("/approvals", asyncRoute(async (req, res) => {
+  res.json(byAgent(await repository.listApprovals(), req.query.agentId));
 }));
 router.post("/approvals/:id/approve", asyncRoute(async (req, res) => {
   const approval = await repository.updateApproval(routeId(req), { payload: req.body.payload, status: "approved" });
@@ -190,8 +223,8 @@ router.post("/approvals/:id/reject", asyncRoute(async (req, res) => {
   res.json(approval);
 }));
 
-router.get("/memory", asyncRoute(async (_req, res) => {
-  res.json(await repository.listMemory());
+router.get("/memory", asyncRoute(async (req, res) => {
+  res.json(byAgent(await repository.listMemory(), req.query.agentId));
 }));
 router.post("/memory", asyncRoute(async (req, res) => {
   const entry: MemoryEntry = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, pastInteractions: [], trustLevel: "unknown", updatedAt: now(), ...req.body };
@@ -207,7 +240,7 @@ router.patch("/memory/:id", asyncRoute(async (req, res) => {
 }));
 
 router.get("/knowledge", asyncRoute(async (req, res) => {
-  const entries = await repository.listKnowledge();
+  const entries = byAgent(await repository.listKnowledge(), req.query.agentId);
   res.json(req.query.q ? searchKnowledge(entries, String(req.query.q)) : entries);
 }));
 router.post("/knowledge", asyncRoute(async (req, res) => {
@@ -229,8 +262,8 @@ router.delete("/knowledge/:id", asyncRoute(async (req, res) => {
   res.status(204).send();
 }));
 
-router.get("/activity", asyncRoute(async (_req, res) => {
-  res.json(await repository.listActivity());
+router.get("/activity", asyncRoute(async (req, res) => {
+  res.json(byAgent(await repository.listActivity(), req.query.agentId));
 }));
 
 router.get("/system/persistence", (_req, res) => {
@@ -243,6 +276,8 @@ router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => 
 });
 
 export default router;
+
+
 
 
 

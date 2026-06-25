@@ -33,3 +33,17 @@ React/Vite admin dashboard provides global navigation and agent module views.
 ## AI Layer
 
 `src/ai` contains provider-agnostic interfaces and an AI router. V1 uses local/mock behavior unless provider API keys are configured.
+
+## Agent-Scoped Memory
+
+Every agent uses the shared `memory_entries` table with `agent_id`. This keeps one core memory engine while allowing each agent to maintain its own relationships, observations, warnings and human notes.
+
+Agent workspace endpoints expose filtered context:
+
+- `GET /api/agents/:slug/workspace`
+- `GET /api/memory?agentId=...`
+- `GET /api/tasks?agentId=...`
+- `GET /api/approvals?agentId=...`
+- `GET /api/assets?agentId=...`
+
+Admin notes remain authoritative. Agent-learned observations should be treated as suggestions unless approved.
