@@ -304,7 +304,7 @@ function LegacyDraftApproval({ raw, payload }: { raw: string; payload: ParsedApp
   </div>;
 }
 
-function ApprovalCaseCard({ item, onDecide }: { item: any; onDecide: (id: string, action: "approve" | "reject") => Promise<void> }) {
+export function ApprovalCaseCard({ item, onDecide }: { item: any; onDecide: (id: string, action: "approve" | "reject") => Promise<void> }) {
   const payload = parsePayload(item.payload);
   const intelligence = payload?.intelligence;
 

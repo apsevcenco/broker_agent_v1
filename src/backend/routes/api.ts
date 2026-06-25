@@ -13,7 +13,7 @@ import { findOrCreateParticipant } from "../../agent/case/CaseParticipantService
 import { resolveCase } from "../../agent/case/CaseRuntimeService";
 import type { AgentTask, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
 import { aiRouter } from "../../ai/aiRouter";
-import { activeAgentId } from "../data/agents";
+import { activeAgentId, defaultAgentDefinitions } from "../data/agents";
 import { findAgentKnowledgeProfile } from "../data/agentProfiles";
 import { findKnowledgeTaxonomy } from "../data/knowledgeTaxonomy";
 import { repository } from "../data/repository";
@@ -455,19 +455,129 @@ router.get("/cases", asyncRoute(async (_req, res) => {
   res.json(enriched);
 }));
 
+router.get("/cases/:id", asyncRoute(async (req, res) => {
+  const caseId = routeId(req);
+  const caseRecord = await repository.findCaseById(caseId);
+  if (!caseRecord) { res.status(404).json({ error: "Case not found" }); return; }
+
+  const [events, participants, allApprovals, allMessages] = await Promise.all([
+    repository.findCaseEventsByCaseId(caseId),
+    repository.findCaseParticipantsByCaseId(caseId),
+    repository.listApprovals(),
+    repository.listMessages()
+  ]);
+
+  // Approvals linked via approval.created events
+  const approvalIds = new Set(
+    events
+      .filter(e => e.relatedEntityType === "approval" && e.relatedEntityId)
+      .map(e => e.relatedEntityId as string)
+  );
+  const approvals = allApprovals.filter(a => approvalIds.has(a.id));
+
+  // Messages linked via message.received events
+  const messageIds = new Set(
+    events
+      .filter(e => e.eventType === "message.received" && e.relatedEntityId)
+      .map(e => e.relatedEntityId as string)
+  );
+  const messages = allMessages.filter(m => messageIds.has(m.id));
+
+  // Latest intelligence from most recent approval that carries it
+  let latestIntelligence: unknown = null;
+  let latestDraft: string | null = null;
+  for (const approval of approvals) {
+    try {
+      const p = JSON.parse(approval.payload);
+      if (p?.intelligence) {
+        latestIntelligence = p.intelligence;
+        const d = p.draft ?? p.intelligence?.execution?.draftContent;
+        latestDraft = typeof d === "string" ? d : null;
+        break;
+      }
+    } catch { /* skip malformed payload */ }
+  }
+
+  // Tool plan from toolplan.created event payload (summary only)
+  const toolPlanEvent = events.find(e => e.eventType === "toolplan.created");
+
+  // Assigned agents — deduplicated slugs from caseProfile + event actorIds,
+  // names resolved from the existing agent registry (no new registry created)
+  const seenSlugs = new Set<string>();
+  const assignedAgents: { slug: string; name: string }[] = [];
+  // Match by slug OR by id so actorId ("yacht-broker-agent") and caseProfile
+  // slug ("yacht-broker") resolve to the same canonical entry
+  const addAgentId = (rawId: string) => {
+    if (!rawId) return;
+    const def = defaultAgentDefinitions.find(a => a.slug === rawId || a.id === rawId);
+    const canonicalSlug = def?.slug ?? rawId;
+    if (seenSlugs.has(canonicalSlug)) return;
+    seenSlugs.add(canonicalSlug);
+    assignedAgents.push({ slug: canonicalSlug, name: def?.name ?? rawId });
+  };
+  addAgentId(caseRecord.caseProfile);
+  for (const e of events) {
+    if (e.actorType === "agent" && e.actorId) addAgentId(e.actorId);
+  }
+
+  res.json({
+    case: caseRecord,
+    events,
+    participants,
+    approvals,
+    messages,
+    latestIntelligence,
+    latestDraft,
+    latestToolPlan: toolPlanEvent?.payload ?? null,
+    assignedAgents
+  });
+}));
+
 router.get("/approvals", asyncRoute(async (req, res) => {
   res.json(byAgent(await repository.listApprovals(), req.query.agentId));
 }));
 router.post("/approvals/:id/approve", asyncRoute(async (req, res) => {
-  const approval = await repository.updateApproval(routeId(req), { payload: req.body.payload, status: "approved" });
+  const patch: Record<string, unknown> = { status: "approved" };
+  if (req.body.payload !== undefined) patch.payload = req.body.payload;
+  const approval = await repository.updateApproval(routeId(req), patch);
   if (!approval) { res.status(404).json({ error: "Approval not found" }); return; }
   await repository.logActivity("admin", "approval_approved", approval.title, approval.agentId);
+  try {
+    const p = typeof approval.payload === "string" ? JSON.parse(approval.payload) : approval.payload;
+    if (p?.caseId) {
+      await appendCaseEvent({
+        caseId: p.caseId,
+        eventType: "approval.decided",
+        actorType: "human_operator",
+        actorId: "system",
+        summary: `Approval approved: ${approval.title}`,
+        payload: { approvalId: approval.id, decision: "approved", title: approval.title, riskLevel: approval.riskLevel },
+        relatedEntityType: "approval",
+        relatedEntityId: approval.id
+      });
+    }
+  } catch { /* malformed payload or missing caseId */ }
   res.json(approval);
 }));
 router.post("/approvals/:id/reject", asyncRoute(async (req, res) => {
   const approval = await repository.updateApproval(routeId(req), { status: "rejected" });
   if (!approval) { res.status(404).json({ error: "Approval not found" }); return; }
   await repository.logActivity("admin", "approval_rejected", approval.title, approval.agentId);
+  try {
+    const p = typeof approval.payload === "string" ? JSON.parse(approval.payload) : approval.payload;
+    if (p?.caseId) {
+      await appendCaseEvent({
+        caseId: p.caseId,
+        eventType: "approval.decided",
+        actorType: "human_operator",
+        actorId: "system",
+        summary: `Approval rejected: ${approval.title}`,
+        payload: { approvalId: approval.id, decision: "rejected", title: approval.title, riskLevel: approval.riskLevel },
+        relatedEntityType: "approval",
+        relatedEntityId: approval.id
+      });
+    }
+  } catch { /* malformed payload or missing caseId */ }
   res.json(approval);
 }));
 

@@ -67,7 +67,7 @@ function statusTone(status: string): Tone {
 
 function CaseCard({ c }: { c: CaseListItem }) {
   return (
-    <article className="case-card">
+    <a href={`/cases/${c.id}`} className="case-card">
       <div className="case-card-row">
         <h3 className="case-card-title">{c.title}</h3>
         <span className="case-card-time">{relativeTime(c.createdAt)}</span>
@@ -92,7 +92,7 @@ function CaseCard({ c }: { c: CaseListItem }) {
           <span className="case-latest-summary">{trunc(c.latestEvent.summary, 90)}</span>
         </div>
       )}
-    </article>
+    </a>
   );
 }
 

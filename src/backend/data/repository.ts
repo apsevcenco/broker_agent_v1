@@ -317,5 +317,33 @@ export const repository = {
   async listCaseParticipants(): Promise<CaseParticipant[]> {
     if (!supabase) return [...store.caseParticipants];
     return selectRows("case_participants", caseParticipantFromRow);
+  },
+
+  async findCaseById(id: string): Promise<Case | null> {
+    if (!supabase) return store.cases.find(c => c.id === id) ?? null;
+    const { data, error } = await supabase.from("cases").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data ? caseFromRow(data) : null;
+  },
+
+  async findCaseEventsByCaseId(caseId: string): Promise<CaseEvent[]> {
+    if (!supabase) {
+      return [...store.caseEvents]
+        .filter(e => e.caseId === caseId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
+    const { data, error } = await supabase
+      .from("case_events").select("*")
+      .eq("case_id", caseId).order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data || []).map(caseEventFromRow);
+  },
+
+  async findCaseParticipantsByCaseId(caseId: string): Promise<CaseParticipant[]> {
+    if (!supabase) return store.caseParticipants.filter(p => p.caseId === caseId);
+    const { data, error } = await supabase
+      .from("case_participants").select("*").eq("case_id", caseId);
+    if (error) throw error;
+    return (data || []).map(caseParticipantFromRow);
   }
 };

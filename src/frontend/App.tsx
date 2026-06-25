@@ -6,6 +6,7 @@ import { AgentDetail, Agents } from "./pages/Agents";
 import { ActivityLog, AiProviders, Approvals, Assets, Knowledge, Leads, Memory, Settings, Tasks } from "./pages/ListPages";
 import { KnowledgeEngine } from "./pages/KnowledgeEngine";
 import { Cases } from "./pages/Cases";
+import { CaseDetail } from "./pages/CaseDetail";
 import { Documents, Experience, Goals } from "./pages/Placeholders";
 
 const routes: Record<string, () => ReactNode> = {
@@ -48,6 +49,13 @@ const routes: Record<string, () => ReactNode> = {
 
 export function App() {
   const path = window.location.pathname;
+
+  // Dynamic case detail route: /cases/:id
+  if (path.startsWith("/cases/") && path.length > 7) {
+    const caseId = path.slice(7);
+    return <Layout route="/cases"><CaseDetail id={caseId} /></Layout>;
+  }
+
   const Page = routes[path] || Dashboard;
   return <Layout route={path === "/" ? "/dashboard" : path}><Page /></Layout>;
 }

@@ -7,13 +7,13 @@ function deriveCaseType(message: InboxMessage, classification?: string): string 
   const hint = ((classification ?? "") + " " + (message.classification ?? "")).toLowerCase();
   if (hint.includes("buyer"))      return "buyer_inquiry";
   if (hint.includes("seller"))     return "seller_inquiry";
-  if (hint.includes("broker"))     return "broker_cooperation";
+  if (hint.includes("broker"))     return "broker_inquiry";
   if (hint.includes("charter"))    return "charter_request";
   if (hint.includes("invest"))     return "investment_inquiry";
   const r = message.senderRole;
   if (r === "buyer")               return "buyer_inquiry";
   if (r === "seller")              return "seller_inquiry";
-  if (r === "broker")              return "broker_cooperation";
+  if (r === "broker")              return "broker_inquiry";
   return "general";
 }
 
