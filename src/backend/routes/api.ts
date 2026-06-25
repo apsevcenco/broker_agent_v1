@@ -4,7 +4,8 @@ import { classifyMessage } from "../../agent/classifyMessage";
 import { scoreLead } from "../../agent/leadScoring";
 import { suggestMemoryUpdate } from "../../agent/memorySuggestions";
 import { assessRisk } from "../../agent/riskAssessment";
-import { draftReplyWithContext } from "../../agent/draftReplyWithContext";
+import { CoreIntelligenceEngine } from "../../agent/core/CoreIntelligenceEngine";
+import type { IntelligenceContext } from "../../agent/core/IntelligenceContext";
 import { generateTasks } from "../../agent/taskGenerator";
 import { buildKnowledgeQuery, searchKnowledge } from "../../agent/knowledgeSearch";
 import { retrieveKnowledgeForAgent } from "../../knowledge/retrieval";
@@ -197,11 +198,10 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
   const message = await repository.findMessage(routeId(req));
   if (!message) { res.status(404).json({ error: "Message not found" }); return; }
 
-  const classification = message.classification || classifyMessage(message);
-  const riskLevel = message.riskLevel || assessRisk(message);
-  const leadScore = scoreLead(message);
   const agentId = message.agentId || activeAgentId;
 
+  // Infrastructure: retrieve knowledge and memory before handing off to CIE
+  const classification = message.classification || classifyMessage(message);
   const [knowledgeResults, allMemory] = await Promise.all([
     retrieveKnowledgeForAgent({
       agentId,
@@ -222,31 +222,42 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
     ...agentMemory.filter(m => !senderMatches.includes(m))
   ].slice(0, 5);
 
-  const result = await draftReplyWithContext({
+  // Assemble the shared intelligence context and route through CIE
+  const context: IntelligenceContext = {
     message,
-    classification,
-    riskLevel,
-    leadScore,
-    knowledgeResults,
-    memoryEntries: contextMemory
-  });
+    knowledge:          knowledgeResults,
+    memory:             contextMemory,
+    relationshipMemory: agentMemory.slice(0, 10),
+    assets:             [],
+    agent:              null,
+    capabilities:       ["knowledge", "memory", "inbox", "tasks", "crm"],
+    metadata:           { agentId, preliminaryClassification: classification }
+  };
+
+  const intelligence = await CoreIntelligenceEngine.execute("yacht-broker", context);
 
   message.status = "reply suggested";
   await repository.updateMessage(message);
 
+  // draft layer contains the full PBRE output — same JSON structure the frontend expects
   const approval = await repository.createApproval({
     id: crypto.randomUUID(),
     agentId,
-    type: "suggested reply",
-    title: `Reply draft for ${message.senderName}`,
-    payload: JSON.stringify(result),
-    status: "pending",
-    riskLevel: result.riskLevel,
+    type:             "suggested reply",
+    title:            `Reply draft for ${message.senderName}`,
+    payload:          JSON.stringify(intelligence.draft),
+    status:           "pending",
+    riskLevel:        intelligence.reasoning.riskLevel as "low" | "medium" | "high" | "critical",
     relatedMessageId: message.id,
-    createdAt: now()
+    createdAt:        now()
   });
-  await repository.logActivity("agent", "reply_drafted", `Draft prepared for ${message.senderName} via ${result.provider}${result.mocked ? " (mocked)" : ""}`, message.agentId);
-  res.json({ approval, draft: result });
+  await repository.logActivity(
+    "agent",
+    "reply_drafted",
+    `Draft via CIE/${intelligence.profileId} (${intelligence.execution.draftProvider}${intelligence.execution.draftMocked ? ", mocked" : ""})`,
+    message.agentId
+  );
+  res.json({ approval, draft: intelligence.draft });
 }));
 
 router.get("/leads", asyncRoute(async (req, res) => {
