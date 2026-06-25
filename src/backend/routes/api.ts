@@ -4,9 +4,10 @@ import { classifyMessage } from "../../agent/classifyMessage";
 import { scoreLead } from "../../agent/leadScoring";
 import { suggestMemoryUpdate } from "../../agent/memorySuggestions";
 import { assessRisk } from "../../agent/riskAssessment";
-import { suggestReply } from "../../agent/suggestReply";
+import { draftReplyWithContext } from "../../agent/draftReplyWithContext";
 import { generateTasks } from "../../agent/taskGenerator";
 import { buildKnowledgeQuery, searchKnowledge } from "../../agent/knowledgeSearch";
+import { retrieveKnowledgeForAgent } from "../../knowledge/retrieval";
 import type { AgentTask, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
 import { aiRouter } from "../../ai/aiRouter";
 import { activeAgentId } from "../data/agents";
@@ -197,25 +198,55 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
   if (!message) { res.status(404).json({ error: "Message not found" }); return; }
 
   const classification = message.classification || classifyMessage(message);
-  const knowledge = byAgent(await repository.listKnowledge(), message.agentId || activeAgentId);
-  const relevantKnowledge = searchKnowledge(knowledge, buildKnowledgeQuery({ ...message, classification }), 5);
-  const draft = suggestReply(message, classification, relevantKnowledge);
+  const riskLevel = message.riskLevel || assessRisk(message);
+  const leadScore = scoreLead(message);
+  const agentId = message.agentId || activeAgentId;
+
+  const [knowledgeResults, allMemory] = await Promise.all([
+    retrieveKnowledgeForAgent({
+      agentId,
+      query: buildKnowledgeQuery({ ...message, classification }),
+      limit: 5,
+      includeGlobal: true
+    }),
+    repository.listMemory()
+  ]);
+
+  const agentMemory = byAgent(allMemory, agentId);
+  const senderLower = message.senderName.toLowerCase();
+  const senderMatches = agentMemory.filter(m =>
+    m.personName.toLowerCase().includes(senderLower) || senderLower.includes(m.personName.toLowerCase())
+  );
+  const contextMemory = [
+    ...senderMatches,
+    ...agentMemory.filter(m => !senderMatches.includes(m))
+  ].slice(0, 5);
+
+  const result = await draftReplyWithContext({
+    message,
+    classification,
+    riskLevel,
+    leadScore,
+    knowledgeResults,
+    memoryEntries: contextMemory
+  });
+
   message.status = "reply suggested";
   await repository.updateMessage(message);
 
   const approval = await repository.createApproval({
     id: crypto.randomUUID(),
-    agentId: message.agentId || activeAgentId,
+    agentId,
     type: "suggested reply",
     title: `Reply draft for ${message.senderName}`,
-    payload: draft,
+    payload: JSON.stringify(result),
     status: "pending",
-    riskLevel: message.riskLevel || assessRisk(message),
+    riskLevel: result.riskLevel,
     relatedMessageId: message.id,
     createdAt: now()
   });
-  await repository.logActivity("agent", "reply_drafted", `Draft reply prepared for ${message.senderName}`, message.agentId);
-  res.json(approval);
+  await repository.logActivity("agent", "reply_drafted", `Draft prepared for ${message.senderName} via ${result.provider}${result.mocked ? " (mocked)" : ""}`, message.agentId);
+  res.json({ approval, draft: result });
 }));
 
 router.get("/leads", asyncRoute(async (req, res) => {

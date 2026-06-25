@@ -21,12 +21,73 @@ function SimpleList({ title, subtitle, endpoint, create, fields }: { title: stri
   </>;
 }
 
+type DraftPayload = {
+  draft: string;
+  riskLevel: string;
+  knowledgeUsed: { title: string; category: string; reliability: string }[];
+  memoryUsed: { personName: string; trustLevel: string; context: string }[];
+  approvalRequired: boolean;
+  safetyNotes: string;
+  provider: string;
+  mocked: boolean;
+};
+
+function parseDraft(raw: string): DraftPayload | null {
+  try { const p = JSON.parse(raw); return typeof p?.draft === "string" ? p as DraftPayload : null; }
+  catch { return null; }
+}
+
+function reliabilityTone(r: string): "green" | "blue" | "neutral" {
+  if (r === "verified") return "green";
+  if (r === "high") return "blue";
+  return "neutral";
+}
+
+function DraftPayloadView({ raw }: { raw: string }) {
+  const p = parseDraft(raw);
+  if (!p) return <pre style={{ whiteSpace: "pre-wrap" }}>{raw}</pre>;
+  return <div>
+    <h4 style={{ margin: "0 0 8px" }}>Draft reply</h4>
+    <pre style={{ whiteSpace: "pre-wrap", marginBottom: 10 }}>{p.draft}</pre>
+    {p.safetyNotes && <div style={{ background: "#fff8e6", border: "1px solid #d5b56f", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 13 }}><strong>Safety:</strong> {p.safetyNotes}</div>}
+    {p.knowledgeUsed.length > 0 && <div style={{ marginBottom: 8 }}>
+      <strong>Knowledge used ({p.knowledgeUsed.length})</strong>
+      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+        {p.knowledgeUsed.map((k, i) => <li key={i} style={{ marginBottom: 3, fontSize: 13 }}>{k.title} <span style={{ color: "#64748b" }}>({k.category})</span> <Badge tone={reliabilityTone(k.reliability)}>{k.reliability}</Badge></li>)}
+      </ul>
+    </div>}
+    {p.memoryUsed.length > 0 && <div style={{ marginBottom: 8 }}>
+      <strong>Memory context ({p.memoryUsed.length})</strong>
+      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+        {p.memoryUsed.map((m, i) => <li key={i} style={{ fontSize: 13 }}>{m.personName} <span style={{ color: "#64748b" }}>trust: {m.trustLevel}</span>{m.context ? ` — ${m.context}` : ""}</li>)}
+      </ul>
+    </div>}
+    <div className="meta" style={{ marginTop: 6 }}>
+      <Badge tone={p.mocked ? "neutral" : "green"}>{p.provider}</Badge>
+      {p.mocked && <Badge>mocked</Badge>}
+      {p.approvalRequired && <Badge tone="red">approval required</Badge>}
+    </div>
+  </div>;
+}
+
 export function Approvals() {
   const [items, setItems] = useState<any[]>([]);
   const load = () => api<any[]>("/api/approvals").then(setItems);
   useEffect(() => { void load(); }, []);
   async function decide(id: string, action: "approve" | "reject") { await postJson(`/api/approvals/${id}/${action}`, {}); load(); }
-  return <><PageHeader title="Approvals" subtitle="No high-risk action executes without admin review." />{items.length ? items.map(item => <article className="item" key={item.id}><div><h3>{item.title}</h3><pre>{item.payload}</pre><div className="meta"><Badge tone="red">{item.riskLevel}</Badge><Badge>{item.status}</Badge></div></div><div className="actions"><button onClick={() => decide(item.id, "approve")}>Approve</button><button onClick={() => decide(item.id, "reject")}>Reject</button></div></article>) : <Empty text="No approval items yet." />}</>;
+  return <><PageHeader title="Approvals" subtitle="No high-risk action executes without admin review." />
+    {items.length ? items.map(item => <article className="item" key={item.id}>
+      <div>
+        <h3>{item.title}</h3>
+        <DraftPayloadView raw={item.payload} />
+        <div className="meta" style={{ marginTop: 8 }}><Badge tone="red">{item.riskLevel}</Badge><Badge>{item.status}</Badge></div>
+      </div>
+      <div className="actions">
+        <button onClick={() => decide(item.id, "approve")}>Approve</button>
+        <button onClick={() => decide(item.id, "reject")}>Reject</button>
+      </div>
+    </article>) : <Empty text="No approval items yet." />}
+  </>;
 }
 
 export function ActivityLog() {
