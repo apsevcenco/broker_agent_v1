@@ -4,6 +4,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Inbox } from "./pages/Inbox";
 import { AgentDetail, Agents } from "./pages/Agents";
 import { ActivityLog, AiProviders, Approvals, Assets, Knowledge, Leads, Memory, Settings, Tasks } from "./pages/ListPages";
+import { KnowledgeEngine } from "./pages/KnowledgeEngine";
 
 const routes: Record<string, () => ReactNode> = {
   "/": Dashboard,
@@ -24,7 +25,8 @@ const routes: Record<string, () => ReactNode> = {
   "/assets": Assets,
   "/activity": ActivityLog,
   "/settings": Settings,
-  "/settings/ai-providers": AiProviders
+  "/settings/ai-providers": AiProviders,
+  "/knowledge-engine": KnowledgeEngine,
 };
 
 export function App() {

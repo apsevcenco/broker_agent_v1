@@ -1,4 +1,4 @@
-﻿import { Activity, Bot, Boxes, BookOpen, Brain, CheckSquare, Gauge, Inbox, ListTodo, Settings, Users } from "lucide-react";
+﻿import { Activity, Bot, Boxes, BookOpen, Brain, CheckSquare, Database, Gauge, Inbox, ListTodo, Settings, Users } from "lucide-react";
 import type { ReactNode } from "react";
 
 const nav = [
@@ -12,7 +12,8 @@ const nav = [
   ["/knowledge", "Knowledge Base", BookOpen],
   ["/assets", "Assets", Boxes],
   ["/activity", "Activity Log", Activity],
-  ["/settings", "Settings", Settings]
+  ["/settings", "Settings", Settings],
+  ["/knowledge-engine", "Knowledge Engine", Database],
 ] as const;
 
 export function Layout({ route, children }: { route: string; children: ReactNode }) {

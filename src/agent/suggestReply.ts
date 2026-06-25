@@ -1,4 +1,10 @@
-﻿import type { InboxMessage, KnowledgeEntry } from "../shared/types";
+﻿// Integration note: this function uses KnowledgeEntry[] from the existing knowledge_entries table.
+// TODO: Future — replace the searchKnowledge() call in src/backend/routes/api.ts (suggest-reply handler)
+//   with retrieveKnowledgeForAgent() from src/knowledge/retrieval.ts, then use
+//   mapResultsToKnowledgeEntries() to convert RetrievalResult[] → KnowledgeEntry[] before
+//   passing here. This will include knowledge_chunks and global entries without changing this
+//   function's signature.
+import type { InboxMessage, KnowledgeEntry } from "../shared/types";
 import { assessRisk } from "./riskAssessment";
 
 const templates: Record<string, string> = {
