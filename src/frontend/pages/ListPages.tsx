@@ -21,123 +21,326 @@ function SimpleList({ title, subtitle, endpoint, create, fields }: { title: stri
   </>;
 }
 
-type DraftPayload = {
-  draft: string;
-  // PBRE fields (present for AI-generated drafts; absent for legacy/template items)
+type Tone = "neutral" | "gold" | "red" | "green" | "blue";
+
+type ParsedApprovalPayload = {
+  draft?: string;
+  intelligence?: any;
   conversationType?: string;
   conversationStage?: string;
   leadScore?: string;
   leadScoreReason?: string;
+  riskLevel?: string;
   riskReason?: string;
   missingQualificationItems?: string[];
   suggestedNextActions?: string[];
+  knowledgeUsed?: any[];
+  memoryUsed?: any[];
+  safetyNotes?: string;
   adminReasoningSummary?: string;
-  // Core fields
-  riskLevel: string;
-  knowledgeUsed: { title: string; category: string; reliability: string; relevance?: string }[];
-  memoryUsed: { personName: string; trustLevel: string; context: string; relevance?: string }[];
-  approvalRequired: boolean;
-  safetyNotes: string;
-  provider: string;
-  mocked: boolean;
+  provider?: string;
+  mocked?: boolean;
+  approvalRequired?: boolean;
+  [key: string]: unknown;
 };
 
-function parseDraft(raw: string): DraftPayload | null {
-  try { const p = JSON.parse(raw); return typeof p?.draft === "string" ? p as DraftPayload : null; }
-  catch { return null; }
+function parsePayload(raw: string): ParsedApprovalPayload | null {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed as ParsedApprovalPayload : null;
+  } catch {
+    return null;
+  }
 }
 
-function reliabilityTone(r: string): "green" | "blue" | "neutral" {
-  if (r === "verified") return "green";
-  if (r === "high") return "blue";
+function usable(value: unknown): value is string | number | boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "string") return value.trim().length > 0 && value !== "undefined" && value !== "null" && value !== "[]" && value !== "[object Object]";
+  return typeof value === "number" || typeof value === "boolean";
+}
+
+function text(value: unknown) {
+  return usable(value) ? String(value) : "";
+}
+
+function titleCase(value: unknown) {
+  const raw = text(value);
+  if (!raw) return "";
+  return raw.toLowerCase().replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function compactDecision(value: unknown) {
+  const normalized = text(value).toUpperCase();
+  const labels: Record<string, string> = {
+    PROCEED: "Proceed",
+    PROCEED_WITH_CAUTION: "Proceed with caution",
+    NEED_MORE_INFORMATION: "Need more information",
+    ESCALATE: "Escalate",
+    REJECT: "Reject",
+    ARCHIVE: "Archive"
+  };
+  return labels[normalized] || "Review required";
+}
+
+function decisionTone(label: string): Tone {
+  if (label === "Proceed") return "green";
+  if (label === "Proceed with caution" || label === "Need more information") return "gold";
+  if (label === "Escalate" || label === "Reject") return "red";
   return "neutral";
 }
 
-function kRelevanceTone(r: string): "green" | "blue" | "neutral" {
-  if (r === "high") return "green";
-  if (r === "medium") return "blue";
+function riskTone(value: unknown): Tone {
+  const risk = text(value).toLowerCase();
+  if (risk === "high" || risk === "critical") return "red";
+  if (risk === "medium") return "gold";
+  if (risk === "low") return "green";
   return "neutral";
 }
 
-function mRelevanceTone(r: string): "red" | "blue" | "neutral" {
-  if (r === "critical") return "red";
-  if (r === "useful") return "blue";
+function scoreTone(value: unknown): Tone {
+  const score = text(value).toUpperCase();
+  if (score === "A" || score === "A+") return "green";
+  if (score === "B") return "blue";
+  if (score === "C") return "gold";
   return "neutral";
 }
 
-function leadScoreTone(s: string): "green" | "blue" | "gold" | "neutral" {
-  if (s === "A" || s === "A+") return "green";
-  if (s === "B") return "blue";
-  if (s === "C") return "gold";
+function statusTone(value: unknown): Tone {
+  const status = text(value).toLowerCase();
+  if (status === "approved" || status === "done") return "green";
+  if (status === "rejected" || status === "failed") return "red";
+  if (status === "pending") return "gold";
   return "neutral";
 }
 
-function DraftPayloadView({ raw }: { raw: string }) {
-  const p = parseDraft(raw);
-  if (!p) return <pre style={{ whiteSpace: "pre-wrap" }}>{raw}</pre>;
+function reliabilityTone(value: unknown): Tone {
+  const reliability = text(value).toLowerCase();
+  if (reliability === "verified") return "green";
+  if (reliability === "high") return "blue";
+  return "neutral";
+}
 
-  const isPBRE = Boolean(p.conversationType || p.leadScore);
+function sourceFromTitle(title: unknown) {
+  const raw = text(title);
+  const match = raw.match(/^Reply draft for\s+(.+)$/i);
+  return match?.[1] || "";
+}
 
-  return <div>
-    {isPBRE && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-      {p.conversationType && <Badge tone="blue">{p.conversationType}</Badge>}
-      {p.conversationStage && <Badge>{p.conversationStage}</Badge>}
-      {p.leadScore && <Badge tone={leadScoreTone(p.leadScore)}>Score {p.leadScore}</Badge>}
-    </div>}
-    {p.leadScoreReason && <p style={{ fontSize: 13, margin: "0 0 4px", color: "#64748b" }}><strong>Lead:</strong> {p.leadScoreReason}</p>}
-    {p.riskReason && <p style={{ fontSize: 13, margin: "0 0 10px", color: "#64748b" }}><strong>Risk:</strong> {p.riskReason}</p>}
+function agentLabel(intelligence: any, item: any) {
+  return titleCase(intelligence?.profileId || intelligence?.agentId || item.agentId || "AI Agent");
+}
 
-    <h4 style={{ margin: "0 0 6px" }}>Draft reply</h4>
-    <pre style={{ whiteSpace: "pre-wrap", marginBottom: 10 }}>{p.draft}</pre>
+function findOriginalMessage(payload: ParsedApprovalPayload, intelligence: any) {
+  return text(payload.originalMessage || payload.messageBody || payload.sourceMessage || intelligence?.message?.body || intelligence?.input?.message?.body || intelligence?.context?.message?.body);
+}
 
-    {(p.missingQualificationItems?.length ?? 0) > 0 && <div style={{ marginBottom: 10 }}>
-      <strong style={{ fontSize: 13 }}>Missing qualification ({p.missingQualificationItems!.length})</strong>
-      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
-        {p.missingQualificationItems!.map((item, i) => <li key={i} style={{ fontSize: 13 }}>{item}</li>)}
-      </ul>
-    </div>}
+function draftText(payload: ParsedApprovalPayload, intelligence: any) {
+  return text(payload.draft || intelligence?.draft?.draft || intelligence?.execution?.draftContent);
+}
 
-    {(p.suggestedNextActions?.length ?? 0) > 0 && <div style={{ marginBottom: 10 }}>
-      <strong style={{ fontSize: 13 }}>Suggested next actions</strong>
-      <ol style={{ margin: "4px 0 0", paddingLeft: 18 }}>
-        {p.suggestedNextActions!.map((action, i) => <li key={i} style={{ fontSize: 13 }}>{action}</li>)}
-      </ol>
-    </div>}
+function actionName(tool: unknown) {
+  const raw = text(tool);
+  if (!raw) return "Proposed action";
+  const last = raw.split(".").pop() || raw;
+  return titleCase(last.replace(/([a-z])([A-Z])/g, "$1 $2"));
+}
 
-    {p.safetyNotes && <div style={{ background: "#fff8e6", border: "1px solid #d5b56f", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 13 }}><strong>Safety:</strong> {p.safetyNotes}</div>}
+function safeArray<T = any>(value: unknown): T[] {
+  return Array.isArray(value) ? value.filter(Boolean) as T[] : [];
+}
 
-    {p.knowledgeUsed.length > 0 && <div style={{ marginBottom: 8 }}>
-      <strong style={{ fontSize: 13 }}>Knowledge used ({p.knowledgeUsed.length})</strong>
-      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
-        {p.knowledgeUsed.map((k, i) => <li key={i} style={{ marginBottom: 3, fontSize: 13 }}>
-          {k.title} <span style={{ color: "#64748b" }}>({k.category})</span>{" "}
-          <Badge tone={reliabilityTone(k.reliability)}>{k.reliability}</Badge>{" "}
-          {k.relevance && <Badge tone={kRelevanceTone(k.relevance)}>{k.relevance}</Badge>}
-        </li>)}
-      </ul>
-    </div>}
+function FieldBadge({ value, tone = "neutral", prefix }: { value: unknown; tone?: Tone; prefix?: string }) {
+  const safe = text(value);
+  if (!safe) return null;
+  return <Badge tone={tone}>{prefix ? `${prefix} ${safe}` : safe}</Badge>;
+}
 
-    {p.memoryUsed.length > 0 && <div style={{ marginBottom: 8 }}>
-      <strong style={{ fontSize: 13 }}>Memory context ({p.memoryUsed.length})</strong>
-      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
-        {p.memoryUsed.map((m, i) => <li key={i} style={{ fontSize: 13 }}>
-          {m.personName} <span style={{ color: "#64748b" }}>trust: {m.trustLevel}</span>{" "}
-          {m.relevance && <Badge tone={mRelevanceTone(m.relevance)}>{m.relevance}</Badge>}
-          {m.context ? ` — ${m.context}` : ""}
-        </li>)}
-      </ul>
-    </div>}
+function CaseHeader({ item, payload, intelligence }: { item: any; payload: ParsedApprovalPayload; intelligence: any }) {
+  const perception = intelligence?.perception || {};
+  const reasoning = intelligence?.reasoning || {};
+  const contact = sourceFromTitle(item.title) || text(perception.senderProfile);
+  const conversationType = payload.conversationType || perception.conversationType;
+  const stage = payload.conversationStage || perception.conversationStage;
+  const score = payload.leadScore || reasoning.leadScore;
+  const risk = item.riskLevel || payload.riskLevel || reasoning.riskLevel;
 
-    {p.adminReasoningSummary && <details style={{ marginBottom: 8 }}>
-      <summary style={{ fontSize: 13, cursor: "pointer", color: "#64748b" }}>Admin reasoning</summary>
-      <pre style={{ fontSize: 12, whiteSpace: "pre-wrap", margin: "6px 0 0", padding: "8px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 4 }}>{p.adminReasoningSummary}</pre>
-    </details>}
-
-    <div className="meta" style={{ marginTop: 8 }}>
-      <Badge tone={p.mocked ? "neutral" : "green"}>{p.provider}</Badge>
-      {p.mocked && <Badge>mocked</Badge>}
-      {p.approvalRequired && <Badge tone="red">approval required</Badge>}
+  return <div className="ops-case-header">
+    <div>
+      <h3>{text(item.title) || "Approval case"}</h3>
+      <div className="meta">
+        <FieldBadge value={agentLabel(intelligence, item)} tone="blue" />
+        <FieldBadge value={contact} />
+        <FieldBadge value={titleCase(conversationType)} />
+        <FieldBadge value={titleCase(stage)} />
+        <FieldBadge value={score} tone={scoreTone(score)} prefix="Lead" />
+        <FieldBadge value={risk ? `${titleCase(risk)} Risk` : ""} tone={riskTone(risk)} />
+        <FieldBadge value={titleCase(item.status)} tone={statusTone(item.status)} />
+      </div>
     </div>
+  </div>;
+}
+
+function OriginalMessagePanel({ message }: { message: string }) {
+  if (!message) return null;
+  return <section className="ops-panel">
+    <h4>Original Message</h4>
+    <p className="ops-message">{message}</p>
+  </section>;
+}
+
+function DecisionPanel({ payload, intelligence }: { payload: ParsedApprovalPayload; intelligence: any }) {
+  const decision = compactDecision(intelligence?.decision?.recommendation);
+  const reason = text(intelligence?.decision?.rationale || payload.leadScoreReason || intelligence?.reasoning?.leadScoreReason || intelligence?.reasoning?.riskReason);
+  return <section className="ops-panel ops-decision">
+    <div className="meta"><Badge tone={decisionTone(decision)}>{decision}</Badge></div>
+    {reason && <p>{reason}</p>}
+  </section>;
+}
+
+function DraftOutputPanel({ draft }: { draft: string }) {
+  if (!draft) return <section className="ops-panel"><h4>AI Draft / Output</h4><p className="ops-muted">No draft output is available for this case.</p></section>;
+  return <section className="ops-panel ops-draft">
+    <h4>AI Draft / Output</h4>
+    <pre>{draft}</pre>
+  </section>;
+}
+
+function ToolPlanChecklist({ toolPlan }: { toolPlan: any }) {
+  const requests = safeArray(toolPlan?.toolRequests);
+  if (!requests.length) return <section className="ops-panel"><h4>Proposed Next Actions</h4><p className="ops-muted">No proposed tool actions.</p></section>;
+  return <section className="ops-panel">
+    <h4>Proposed Next Actions</h4>
+    {text(toolPlan.summary) && <p className="ops-muted">{toolPlan.summary}</p>}
+    <div className="ops-tool-list">
+      {requests.map((request: any, index) => <div className="ops-tool-row" key={text(request.id) || index}>
+        <div className="ops-check" aria-hidden="true">✓</div>
+        <div>
+          <strong>{actionName(request.tool)}</strong>
+          {text(request.reason) && <p>{request.reason}</p>}
+          <div className="meta">
+            <FieldBadge value={titleCase(request.category)} />
+            <FieldBadge value={titleCase(request.priority)} tone={request.priority === "critical" || request.priority === "high" ? "red" : request.priority === "medium" ? "gold" : "neutral"} />
+            <FieldBadge value={request.riskLevel ? `${titleCase(request.riskLevel)} Risk` : ""} tone={riskTone(request.riskLevel)} />
+            {request.approvalRequired && <Badge tone="red">Approval required</Badge>}
+            <FieldBadge value={titleCase(request.status)} />
+          </div>
+        </div>
+      </div>)}
+    </div>
+  </section>;
+}
+
+function IntelligenceDetailsAccordion({ payload, intelligence }: { payload: ParsedApprovalPayload; intelligence: any }) {
+  const reasoning = intelligence?.reasoning || {};
+  const planning = intelligence?.planning || {};
+  const decision = intelligence?.decision || {};
+  const missing = safeArray<string>(payload.missingQualificationItems || reasoning.missingQualificationItems);
+  const next = safeArray<string>(payload.suggestedNextActions || planning.suggestedNextActions);
+  const confidence = text(payload.confidence || reasoning.confidence || intelligence?.confidence);
+
+  return <details className="ops-details">
+    <summary>Intelligence Details</summary>
+    <div className="ops-detail-grid">
+      {text(payload.leadScoreReason || reasoning.leadScoreReason) && <p><strong>Lead score:</strong> {text(payload.leadScoreReason || reasoning.leadScoreReason)}</p>}
+      {text(payload.riskReason || reasoning.riskReason) && <p><strong>Risk:</strong> {text(payload.riskReason || reasoning.riskReason)}</p>}
+      {missing.length > 0 && <div><strong>Missing qualification</strong><ul>{missing.map((item, i) => <li key={i}>{item}</li>)}</ul></div>}
+      {next.length > 0 && <div><strong>Suggested next actions</strong><ol>{next.map((item, i) => <li key={i}>{item}</li>)}</ol></div>}
+      {text(payload.adminReasoningSummary || reasoning.adminReasoningSummary) && <pre>{text(payload.adminReasoningSummary || reasoning.adminReasoningSummary)}</pre>}
+      {text(payload.safetyNotes || decision.safetyNotes) && <p><strong>Safety:</strong> {text(payload.safetyNotes || decision.safetyNotes)}</p>}
+      {confidence && <p><strong>Confidence:</strong> {confidence}</p>}
+    </div>
+  </details>;
+}
+
+function KnowledgeMemoryAccordion({ payload, intelligence }: { payload: ParsedApprovalPayload; intelligence: any }) {
+  const reasoning = intelligence?.reasoning || {};
+  const knowledge = safeArray<any>(payload.knowledgeUsed || reasoning.knowledgeUsed);
+  const memory = safeArray<any>(payload.memoryUsed || reasoning.memoryUsed);
+  if (!knowledge.length && !memory.length) return null;
+
+  return <details className="ops-details">
+    <summary>Knowledge & Memory</summary>
+    {knowledge.length > 0 && <div className="ops-reference-list">
+      <strong>Knowledge used ({knowledge.length})</strong>
+      {knowledge.map((entry, index) => <div className="ops-reference" key={index}>
+        <span>{text(entry.title) || "Knowledge entry"}</span>
+        <div className="meta">
+          <FieldBadge value={entry.category} />
+          <FieldBadge value={entry.reliability} tone={reliabilityTone(entry.reliability)} />
+          <FieldBadge value={entry.relevance} />
+        </div>
+      </div>)}
+    </div>}
+    {memory.length > 0 && <div className="ops-reference-list">
+      <strong>Memory context ({memory.length})</strong>
+      {memory.map((entry, index) => <div className="ops-reference" key={index}>
+        <span>{text(entry.personName) || "Memory entry"}</span>
+        {text(entry.context) && <p>{entry.context}</p>}
+        <div className="meta">
+          <FieldBadge value={entry.trustLevel ? `Trust ${entry.trustLevel}` : ""} />
+          <FieldBadge value={entry.relevance} />
+        </div>
+      </div>)}
+    </div>}
+  </details>;
+}
+
+function TechnicalDetailsAccordion({ raw, payload, intelligence }: { raw: string; payload: ParsedApprovalPayload; intelligence: any }) {
+  return <details className="ops-details">
+    <summary>Technical Details</summary>
+    {text(payload.provider || intelligence?.execution?.draftProvider) && <p><strong>Provider:</strong> {text(payload.provider || intelligence?.execution?.draftProvider)}</p>}
+    {(payload.mocked === true || intelligence?.execution?.draftMocked === true) && <Badge>mocked</Badge>}
+    <pre>{JSON.stringify(payload || raw, null, 2)}</pre>
+  </details>;
+}
+
+function LegacyDraftApproval({ raw, payload }: { raw: string; payload: ParsedApprovalPayload | null }) {
+  if (!payload || !text(payload.draft)) return <pre>{raw}</pre>;
+  return <div className="ops-legacy">
+    <DraftOutputPanel draft={text(payload.draft)} />
+    <IntelligenceDetailsAccordion payload={payload} intelligence={null} />
+    <KnowledgeMemoryAccordion payload={payload} intelligence={null} />
+    <TechnicalDetailsAccordion raw={raw} payload={payload} intelligence={null} />
+  </div>;
+}
+
+function ApprovalCaseCard({ item, onDecide }: { item: any; onDecide: (id: string, action: "approve" | "reject") => Promise<void> }) {
+  const payload = parsePayload(item.payload);
+  const intelligence = payload?.intelligence;
+
+  if (!payload || !intelligence) {
+    return <article className="item ops-case-card">
+      <div>
+        <CaseHeader item={item} payload={payload || {}} intelligence={null} />
+        <LegacyDraftApproval raw={item.payload || ""} payload={payload} />
+        <div className="meta" style={{ marginTop: 8 }}><Badge tone={riskTone(item.riskLevel)}>{titleCase(item.riskLevel) || "Risk"}</Badge><Badge tone={statusTone(item.status)}>{titleCase(item.status) || "Status"}</Badge></div>
+      </div>
+      <OperatorActions item={item} onDecide={onDecide} />
+    </article>;
+  }
+
+  const original = findOriginalMessage(payload, intelligence);
+  const draft = draftText(payload, intelligence);
+
+  return <article className="item ops-case-card">
+    <div>
+      <CaseHeader item={item} payload={payload} intelligence={intelligence} />
+      <OriginalMessagePanel message={original} />
+      <DecisionPanel payload={payload} intelligence={intelligence} />
+      <DraftOutputPanel draft={draft} />
+      <ToolPlanChecklist toolPlan={intelligence.execution?.toolPlan} />
+      <IntelligenceDetailsAccordion payload={payload} intelligence={intelligence} />
+      <KnowledgeMemoryAccordion payload={payload} intelligence={intelligence} />
+      <TechnicalDetailsAccordion raw={item.payload || ""} payload={payload} intelligence={intelligence} />
+    </div>
+    <OperatorActions item={item} onDecide={onDecide} />
+  </article>;
+}
+
+function OperatorActions({ item, onDecide }: { item: any; onDecide: (id: string, action: "approve" | "reject") => Promise<void> }) {
+  return <div className="actions ops-actions">
+    <button onClick={() => onDecide(item.id, "approve")}>Approve</button>
+    <button onClick={() => onDecide(item.id, "reject")}>Reject</button>
   </div>;
 }
 
@@ -146,18 +349,8 @@ export function Approvals() {
   const load = () => api<any[]>("/api/approvals").then(setItems);
   useEffect(() => { void load(); }, []);
   async function decide(id: string, action: "approve" | "reject") { await postJson(`/api/approvals/${id}/${action}`, {}); load(); }
-  return <><PageHeader title="Approvals" subtitle="No high-risk action executes without admin review." />
-    {items.length ? items.map(item => <article className="item" key={item.id}>
-      <div>
-        <h3>{item.title}</h3>
-        <DraftPayloadView raw={item.payload} />
-        <div className="meta" style={{ marginTop: 8 }}><Badge tone="red">{item.riskLevel}</Badge><Badge>{item.status}</Badge></div>
-      </div>
-      <div className="actions">
-        <button onClick={() => decide(item.id, "approve")}>Approve</button>
-        <button onClick={() => decide(item.id, "reject")}>Reject</button>
-      </div>
-    </article>) : <Empty text="No approval items yet." />}
+  return <><PageHeader title="AI Operations Center" subtitle="Human supervision workspace for AI decisions, drafts, proposed actions and approvals." />
+    {items.length ? items.map(item => <ApprovalCaseCard key={item.id} item={item} onDecide={decide} />) : <Empty text="No approval items yet." />}
   </>;
 }
 

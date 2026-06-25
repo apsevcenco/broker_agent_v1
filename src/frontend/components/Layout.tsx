@@ -7,7 +7,7 @@ const nav = [
   ["/inbox", "Inbox", Inbox],
   ["/leads", "Leads / CRM", Users],
   ["/tasks", "Tasks", ListTodo],
-  ["/approvals", "Approvals", CheckSquare],
+  ["/approvals", "AI Operations Center", CheckSquare],
   ["/memory", "Memory", Brain],
   ["/knowledge", "Knowledge Base", BookOpen],
   ["/assets", "Assets", Boxes],
