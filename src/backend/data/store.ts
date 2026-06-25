@@ -1,4 +1,4 @@
-﻿import type { ActivityLog, AgentDefinition, AgentTask, ApprovalItem, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
+﻿import type { ActivityLog, AgentDefinition, AgentTask, ApprovalItem, Case, CaseEvent, CaseParticipant, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
 import { activeAgentId, defaultAgentDefinitions } from "./agents";
 
 const now = () => new Date().toISOString();
@@ -26,7 +26,10 @@ export const store = {
       updatedAt: now()
     }
   ] as KnowledgeEntry[],
-  activity: [] as ActivityLog[]
+  activity:          [] as ActivityLog[],
+  cases:             [] as Case[],
+  caseEvents:        [] as CaseEvent[],
+  caseParticipants:  [] as CaseParticipant[]
 };
 
 export function logActivity(actor: ActivityLog["actor"], action: string, details: string, agentId?: string) {

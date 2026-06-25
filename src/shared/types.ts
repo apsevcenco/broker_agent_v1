@@ -153,6 +153,50 @@ export interface ActivityLog {
   createdAt: string;
 }
 
+// ─── Case Runtime V1 ─────────────────────────────────────────────────────────
+
+export interface Case {
+  id: string;
+  companyId: string;
+  title: string;
+  caseType: string;
+  caseProfile: string;
+  status: string;
+  source: string;
+  primaryContactName?: string;
+  primaryContactEmail?: string;
+  createdFromMessageId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CaseEvent {
+  id: string;
+  caseId: string;
+  companyId: string;
+  eventType: string;
+  actorType: "agent" | "system" | "human_operator" | "participant";
+  actorId?: string;
+  summary: string;
+  payload: Record<string, unknown>;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  createdAt: string;
+}
+
+export interface CaseParticipant {
+  id: string;
+  caseId: string;
+  identityId?: string;
+  name: string;
+  email?: string;
+  role: string;
+  status: string;
+  createdAt: string;
+}
+
+// ─── AI provider settings ─────────────────────────────────────────────────────
+
 export type AiTaskType = "conversation_reply" | "legal_risk_review" | "document_analysis" | "market_research" | "lead_scoring" | "memory_extraction" | "support_debug" | "code_fix_prompt" | "summarization" | "translation" | "classification";
 export type AiProviderName = "openai" | "anthropic" | "gemini" | "perplexity" | "local" | "mock";
 

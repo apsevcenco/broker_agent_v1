@@ -1,4 +1,4 @@
-﻿import type { ActivityLog, AgentDefinition, AgentTask, ApprovalItem, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
+﻿import type { ActivityLog, AgentDefinition, AgentTask, ApprovalItem, Case, CaseEvent, CaseParticipant, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
 import { dashboardSummary as memoryDashboardSummary, logActivity as memoryLogActivity, store } from "./store";
 import { supabase } from "./supabaseClient";
 import {
@@ -10,6 +10,12 @@ import {
   approvalToRow,
   assetFromRow,
   assetToRow,
+  caseEventFromRow,
+  caseEventToRow,
+  caseFromRow,
+  caseParticipantFromRow,
+  caseParticipantToRow,
+  caseToRow,
   knowledgeFromRow,
   knowledgeToRow,
   leadFromRow,
@@ -243,5 +249,58 @@ export const repository = {
 
   async listActivity() {
     return supabase ? selectRows("agent_activity_logs", activityFromRow) : store.activity;
+  },
+
+  // ─── Case Runtime V1 ───────────────────────────────────────────────────────
+
+  async createCase(c: Case): Promise<Case> {
+    if (!supabase) { store.cases.unshift(c); return c; }
+    return insertRow("cases", caseToRow(c), caseFromRow);
+  },
+
+  async findOpenCaseByContact(name: string, caseProfile: string): Promise<Case | null> {
+    if (!supabase) {
+      return store.cases.find(c =>
+        c.primaryContactName === name &&
+        c.caseProfile === caseProfile &&
+        c.status === "open"
+      ) ?? null;
+    }
+    const { data, error } = await supabase
+      .from("cases")
+      .select("*")
+      .eq("primary_contact_name", name)
+      .eq("case_profile", caseProfile)
+      .eq("status", "open")
+      .eq("company_id", "internal")
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? caseFromRow(data) : null;
+  },
+
+  async createCaseEvent(e: CaseEvent): Promise<CaseEvent> {
+    if (!supabase) { store.caseEvents.unshift(e); return e; }
+    return insertRow("case_events", caseEventToRow(e), caseEventFromRow);
+  },
+
+  async createCaseParticipant(p: CaseParticipant): Promise<CaseParticipant> {
+    if (!supabase) { store.caseParticipants.unshift(p); return p; }
+    return insertRow("case_participants", caseParticipantToRow(p), caseParticipantFromRow);
+  },
+
+  async findParticipantInCase(caseId: string, name: string): Promise<CaseParticipant | null> {
+    if (!supabase) {
+      return store.caseParticipants.find(p => p.caseId === caseId && p.name === name) ?? null;
+    }
+    const { data, error } = await supabase
+      .from("case_participants")
+      .select("*")
+      .eq("case_id", caseId)
+      .eq("name", name)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? caseParticipantFromRow(data) : null;
   }
 };

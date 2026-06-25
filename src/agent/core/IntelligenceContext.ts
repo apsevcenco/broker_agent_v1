@@ -2,6 +2,14 @@ import type { AgentDefinition, InboxMessage, Lead, ManagedAsset, MemoryEntry } f
 import type { RetrievalResult } from "../../knowledge/knowledgeTypes";
 import type { Capability } from "./Capability";
 
+export interface ParticipantSummary {
+  id: string;
+  name: string;
+  email?: string;
+  role: string;
+  status: string;
+}
+
 export interface IntelligenceContext {
   // Primary input
   message: InboxMessage;
@@ -26,6 +34,14 @@ export interface IntelligenceContext {
 
   // Which capabilities are available in this execution context
   capabilities: Capability[];
+
+  // Case Runtime V1 linkage — all optional; absent when case setup fails
+  companyId?: string;
+  caseId?: string;
+  triggeringEventId?: string;
+  caseProfile?: string;
+  caseStatus?: string;
+  participants?: ParticipantSummary[];
 
   // Extension point for future profile-specific metadata
   metadata?: Record<string, unknown>;

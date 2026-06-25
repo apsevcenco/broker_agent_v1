@@ -1,4 +1,4 @@
-﻿import type { ActivityLog, AgentDefinition, AgentTask, ApprovalItem, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
+﻿import type { ActivityLog, AgentDefinition, AgentTask, ApprovalItem, Case, CaseEvent, CaseParticipant, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
 
 export function messageFromRow(row: any): InboxMessage {
   return {
@@ -253,6 +253,102 @@ export function agentFromRow(row: any): AgentDefinition {
     updatedAt: row.updated_at
   };
 }
+
+// ─── Case Runtime V1 mappers ──────────────────────────────────────────────────
+
+export function caseFromRow(row: any): Case {
+  return {
+    id:                     row.id,
+    companyId:              row.company_id ?? "internal",
+    title:                  row.title,
+    caseType:               row.case_type,
+    caseProfile:            row.case_profile,
+    status:                 row.status,
+    source:                 row.source,
+    primaryContactName:     row.primary_contact_name ?? undefined,
+    primaryContactEmail:    row.primary_contact_email ?? undefined,
+    createdFromMessageId:   row.created_from_message_id ?? undefined,
+    createdAt:              row.created_at,
+    updatedAt:              row.updated_at
+  };
+}
+
+export function caseToRow(c: Case) {
+  return {
+    id:                       c.id,
+    company_id:               c.companyId,
+    title:                    c.title,
+    case_type:                c.caseType,
+    case_profile:             c.caseProfile,
+    status:                   c.status,
+    source:                   c.source,
+    primary_contact_name:     c.primaryContactName ?? null,
+    primary_contact_email:    c.primaryContactEmail ?? null,
+    created_from_message_id:  c.createdFromMessageId ?? null,
+    created_at:               c.createdAt,
+    updated_at:               c.updatedAt
+  };
+}
+
+export function caseEventFromRow(row: any): CaseEvent {
+  return {
+    id:                 row.id,
+    caseId:             row.case_id,
+    companyId:          row.company_id ?? "internal",
+    eventType:          row.event_type,
+    actorType:          row.actor_type,
+    actorId:            row.actor_id ?? undefined,
+    summary:            row.summary,
+    payload:            row.payload ?? {},
+    relatedEntityType:  row.related_entity_type ?? undefined,
+    relatedEntityId:    row.related_entity_id ?? undefined,
+    createdAt:          row.created_at
+  };
+}
+
+export function caseEventToRow(e: CaseEvent) {
+  return {
+    id:                   e.id,
+    case_id:              e.caseId,
+    company_id:           e.companyId,
+    event_type:           e.eventType,
+    actor_type:           e.actorType,
+    actor_id:             e.actorId ?? null,
+    summary:              e.summary,
+    payload:              e.payload,
+    related_entity_type:  e.relatedEntityType ?? null,
+    related_entity_id:    e.relatedEntityId ?? null,
+    created_at:           e.createdAt
+  };
+}
+
+export function caseParticipantFromRow(row: any): CaseParticipant {
+  return {
+    id:          row.id,
+    caseId:      row.case_id,
+    identityId:  row.identity_id ?? undefined,
+    name:        row.name,
+    email:       row.email ?? undefined,
+    role:        row.role,
+    status:      row.status,
+    createdAt:   row.created_at
+  };
+}
+
+export function caseParticipantToRow(p: CaseParticipant) {
+  return {
+    id:           p.id,
+    case_id:      p.caseId,
+    identity_id:  p.identityId ?? null,
+    name:         p.name,
+    email:        p.email ?? null,
+    role:         p.role,
+    status:       p.status,
+    created_at:   p.createdAt
+  };
+}
+
+// ─── agent mapper ─────────────────────────────────────────────────────────────
 
 export function agentToRow(agent: AgentDefinition) {
   return {

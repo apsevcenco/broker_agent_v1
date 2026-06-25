@@ -5,10 +5,12 @@ import { scoreLead } from "../../agent/leadScoring";
 import { suggestMemoryUpdate } from "../../agent/memorySuggestions";
 import { assessRisk } from "../../agent/riskAssessment";
 import { CoreIntelligenceEngine } from "../../agent/core/CoreIntelligenceEngine";
-import type { IntelligenceContext } from "../../agent/core/IntelligenceContext";
+import { buildIntelligenceContext } from "../../agent/core/IntelligenceContextBuilder";
 import { generateTasks } from "../../agent/taskGenerator";
-import { buildKnowledgeQuery, searchKnowledge } from "../../agent/knowledgeSearch";
-import { retrieveKnowledgeForAgent } from "../../knowledge/retrieval";
+import { searchKnowledge } from "../../agent/knowledgeSearch";
+import { appendCaseEvent } from "../../agent/case/CaseEventService";
+import { findOrCreateParticipant } from "../../agent/case/CaseParticipantService";
+import { resolveCase } from "../../agent/case/CaseRuntimeService";
 import type { AgentTask, InboxMessage, KnowledgeEntry, Lead, ManagedAsset, MemoryEntry } from "../../shared/types";
 import { aiRouter } from "../../ai/aiRouter";
 import { activeAgentId } from "../data/agents";
@@ -198,57 +200,153 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
   const message = await repository.findMessage(routeId(req));
   if (!message) { res.status(404).json({ error: "Message not found" }); return; }
 
-  const agentId = message.agentId || activeAgentId;
-
-  // Infrastructure: retrieve knowledge and memory before handing off to CIE
+  const agentId        = message.agentId || activeAgentId;
   const classification = message.classification || classifyMessage(message);
-  const [knowledgeResults, allMemory] = await Promise.all([
-    retrieveKnowledgeForAgent({
-      agentId,
-      query: buildKnowledgeQuery({ ...message, classification }),
-      limit: 5,
-      includeGlobal: true
-    }),
-    repository.listMemory()
-  ]);
+  const caseProfile    = "yacht-broker";
 
-  const agentMemory = byAgent(allMemory, agentId);
-  const senderLower = message.senderName.toLowerCase();
-  const senderMatches = agentMemory.filter(m =>
-    m.personName.toLowerCase().includes(senderLower) || senderLower.includes(m.personName.toLowerCase())
-  );
-  const contextMemory = [
-    ...senderMatches,
-    ...agentMemory.filter(m => !senderMatches.includes(m))
-  ].slice(0, 5);
+  // ── Case Runtime V1 setup (non-blocking) ──────────────────────────────────
+  let caseId:           string | undefined;
+  let triggeringEventId: string | undefined;
+  let caseStatus        = "open";
+  const participantSummaries: Array<{ id: string; name: string; role: string; status: string }> = [];
 
-  // Assemble the shared intelligence context and route through CIE
-  const context: IntelligenceContext = {
+  try {
+    const resolved = await resolveCase(message, caseProfile, classification);
+    caseId     = resolved.caseId;
+    caseStatus = resolved.caseStatus;
+
+    const participant = await findOrCreateParticipant({
+      caseId,
+      name: message.senderName,
+      role: message.senderRole
+    });
+    participantSummaries.push({
+      id:     participant.id,
+      name:   participant.name,
+      role:   participant.role,
+      status: participant.status
+    });
+
+    const trigEvt = await appendCaseEvent({
+      caseId,
+      eventType:         "message.received",
+      actorType:         "participant",
+      actorId:           participant.id,
+      summary:           `Message received from ${message.senderName} via ${message.source}`,
+      payload:           { messageId: message.id, senderName: message.senderName, senderRole: message.senderRole, source: message.source, urgency: message.urgency, classification },
+      relatedEntityType: "message",
+      relatedEntityId:   message.id
+    });
+    triggeringEventId = trigEvt.id;
+    console.log(`[CIE] case=${caseId} triggeringEvent=${triggeringEventId}`);
+  } catch (err) {
+    console.error("[CaseRuntime] Setup failed (non-critical):", (err as Error).message);
+  }
+
+  // ── Build context and run CIE ─────────────────────────────────────────────
+  const context = await buildIntelligenceContext({
     message,
-    knowledge:          knowledgeResults,
-    memory:             contextMemory,
-    relationshipMemory: agentMemory.slice(0, 10),
-    assets:             [],
-    agent:              null,
-    capabilities:       ["knowledge", "memory", "inbox", "tasks", "crm"],
-    metadata:           { agentId, preliminaryClassification: classification }
-  };
+    agentId,
+    caseId:            caseId ?? "",
+    triggeringEventId: triggeringEventId ?? "",
+    caseProfile,
+    caseStatus,
+    participants:      participantSummaries,
+    classification
+  });
 
   const intelligence = await CoreIntelligenceEngine.execute("yacht-broker", context);
+
+  // ── Post-CIE events (non-blocking) ───────────────────────────────────────
+  let intelligenceEventId: string | undefined;
+  let decisionEventId:     string | undefined;
+  let toolPlanEventId:     string | null = null;
+
+  if (caseId) {
+    try {
+      const toolPlan = intelligence.execution.toolPlan;
+
+      const [intEvt, decEvt] = await Promise.all([
+        appendCaseEvent({
+          caseId,
+          eventType: "intelligence.generated",
+          actorType: "agent",
+          actorId:   agentId,
+          summary:   `CIE intelligence via ${intelligence.profileId} (${intelligence.execution.draftProvider})`,
+          payload:   {
+            profileId:          intelligence.profileId,
+            provider:           intelligence.execution.draftProvider,
+            mocked:             intelligence.execution.draftMocked,
+            leadScore:          intelligence.reasoning.leadScore,
+            riskLevel:          intelligence.reasoning.riskLevel,
+            recommendation:     intelligence.decision.recommendation,
+            knowledgeUsedCount: intelligence.reasoning.knowledgeUsed.length,
+            memoryUsedCount:    intelligence.reasoning.memoryUsed.length,
+            toolRequestCount:   toolPlan?.toolRequests.length ?? 0
+          }
+        }),
+        appendCaseEvent({
+          caseId,
+          eventType: "decision.proposed",
+          actorType: "agent",
+          actorId:   agentId,
+          summary:   `Decision proposed: ${intelligence.decision.recommendation}`,
+          payload:   {
+            recommendation:  intelligence.decision.recommendation,
+            rationale:       intelligence.decision.rationale,
+            riskLevel:       intelligence.reasoning.riskLevel,
+            safetyNotes:     intelligence.decision.safetyNotes,
+            approvalRequired: intelligence.decision.approvalRequired
+          }
+        })
+      ]);
+
+      intelligenceEventId = intEvt.id;
+      decisionEventId     = decEvt.id;
+
+      if (toolPlan && toolPlan.toolRequests.length > 0) {
+        const tpEvt = await appendCaseEvent({
+          caseId,
+          eventType: "toolplan.created",
+          actorType: "agent",
+          actorId:   agentId,
+          summary:   `ToolPlan: ${toolPlan.toolRequests.length} action(s), highest risk ${toolPlan.highestRiskLevel}`,
+          payload:   {
+            toolRequestCount: toolPlan.toolRequests.length,
+            highestRiskLevel: toolPlan.highestRiskLevel,
+            requiresApproval: toolPlan.requiresApproval,
+            summary:          toolPlan.summary,
+            toolRequests:     toolPlan.toolRequests.map(r => ({ tool: r.tool, category: r.category, priority: r.priority, riskLevel: r.riskLevel }))
+          }
+        });
+        toolPlanEventId = tpEvt.id;
+      }
+
+      console.log(`[CIE] Events: intelligence=${intelligenceEventId} decision=${decisionEventId}${toolPlanEventId ? ` toolplan=${toolPlanEventId}` : ""}`);
+    } catch (err) {
+      console.error("[CaseRuntime] Post-CIE events failed (non-critical):", (err as Error).message);
+    }
+  }
+
+  // ── Approval ──────────────────────────────────────────────────────────────
+  message.status = "reply suggested";
+  await repository.updateMessage(message);
+
   const approvalPayload = {
     ...intelligence.draft,
     draft: typeof intelligence.draft.draft === "string"
       ? intelligence.draft.draft
       : intelligence.execution.draftContent,
+    caseId,
+    triggeringEventId,
+    intelligenceEventId,
+    decisionEventId,
+    toolPlanEventId,
     intelligence
   };
 
-  message.status = "reply suggested";
-  await repository.updateMessage(message);
-
-  // draft layer contains the full PBRE output — same JSON structure the frontend expects
   const approval = await repository.createApproval({
-    id: crypto.randomUUID(),
+    id:               crypto.randomUUID(),
     agentId,
     type:             "suggested reply",
     title:            `Reply draft for ${message.senderName}`,
@@ -258,13 +356,30 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
     relatedMessageId: message.id,
     createdAt:        now()
   });
+
+  if (caseId) {
+    try {
+      await appendCaseEvent({
+        caseId,
+        eventType:         "approval.created",
+        actorType:         "system",
+        summary:           `Approval pending: ${approval.title}`,
+        payload:           { approvalId: approval.id, type: approval.type, title: approval.title, riskLevel: approval.riskLevel, status: approval.status },
+        relatedEntityType: "approval",
+        relatedEntityId:   approval.id
+      });
+    } catch (err) {
+      console.error("[CaseRuntime] approval.created event failed (non-critical):", (err as Error).message);
+    }
+  }
+
   await repository.logActivity(
     "agent",
     "reply_drafted",
-    `Draft via CIE/${intelligence.profileId} (${intelligence.execution.draftProvider}${intelligence.execution.draftMocked ? ", mocked" : ""})`,
+    `Draft via CIE/${intelligence.profileId} (${intelligence.execution.draftProvider}${intelligence.execution.draftMocked ? ", mocked" : ""})${caseId ? ` | case=${caseId}` : ""}`,
     message.agentId
   );
-  res.json({ approval, draft: intelligence.draft, intelligence });
+  res.json({ approval, draft: intelligence.draft, intelligence, caseId });
 }));
 
 router.get("/leads", asyncRoute(async (req, res) => {
