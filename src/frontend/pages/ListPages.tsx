@@ -2,10 +2,10 @@
 import { api, patchJson, postJson } from "../services/api";
 import { Badge, Empty, PageHeader } from "../components/UI";
 
-export function Leads() { return <SimpleList title="Leads / CRM" subtitle="Shared profiles, qualification and relationship history across agents." endpoint="/api/leads" create={{ name: "New Lead", role: "buyer", source: "manual", status: "new", leadScore: "C" }} fields={["name", "company", "role", "leadScore", "interestType", "region"]} />; }
+export function Leads() { return <SimpleList title="CRM" subtitle="Commercial contacts, lead qualification and relationship history." endpoint="/api/leads" create={{ name: "New Lead", role: "buyer", source: "manual", status: "new", leadScore: "C" }} fields={["name", "company", "role", "leadScore", "interestType", "region"]} />; }
 export function Tasks() { return <SimpleList title="Tasks" subtitle="Shared human review, follow-ups and specialist agent work queue." endpoint="/api/tasks" create={{ type: "human review required", title: "Review new opportunity", description: "Check qualification and next step.", priority: "medium" }} fields={["title", "type", "status", "priority"]} />; }
 export function Memory() { return <SimpleList title="Memory" subtitle="Shared editable relationship memory protected from automatic overwrite." endpoint="/api/memory" create={{ personName: "New Contact", role: "broker", relationshipStatus: "new", trustLevel: "unknown" }} fields={["personName", "company", "role", "relationshipStatus", "trustLevel"]} />; }
-export function Knowledge() { return <SimpleList title="Knowledge Base" subtitle="Shared knowledge entries for luxury mobility agents." endpoint="/api/knowledge" create={{ title: "New Entry", category: "Luxury Mobility", summary: "", content: "", reliabilityLevel: "medium", tags: [] }} fields={["title", "category", "summary", "reliabilityLevel"]} />; }
+export function Knowledge() { return <SimpleList title="Knowledge" subtitle="Reusable company knowledge used by all AI agents during reasoning." endpoint="/api/knowledge" create={{ title: "New Entry", category: "Luxury Mobility", summary: "", content: "", reliabilityLevel: "medium", tags: [] }} fields={["title", "category", "summary", "reliabilityLevel"]} />; }
 export function Assets() { return <SimpleList title="Assets" subtitle="Shared asset registry for yachts, vehicles, aircraft, villas, services and future modules." endpoint="/api/assets" create={{ type: "yacht", name: "New Asset", status: "draft", metadata: {} }} fields={["type", "name", "brand", "model", "year", "location", "status", "notes"]} />; }
 
 function SimpleList({ title, subtitle, endpoint, create, fields }: { title: string; subtitle: string; endpoint: string; create: any; fields: string[] }) {
@@ -357,7 +357,7 @@ export function Approvals() {
 export function ActivityLog() {
   const [items, setItems] = useState<any[]>([]);
   useEffect(() => { api<any[]>("/api/activity").then(setItems); }, []);
-  return <><PageHeader title="Activity Log" subtitle="Agent, admin and system actions." />{items.length ? items.map(item => <article className="row" key={item.id}><strong>{item.action}</strong><span>{item.actor} - {item.details}</span></article>) : <Empty text="No activity yet." />}</>;
+  return <><PageHeader title="Analytics" subtitle="Agent activity log, AI operations and system actions." />{items.length ? items.map(item => <article className="row" key={item.id}><strong>{item.action}</strong><span>{item.actor} - {item.details}</span></article>) : <Empty text="No activity yet." />}</>;
 }
 
 export function Settings() {
