@@ -50,7 +50,24 @@ export const openaiProvider: AiProvider = {
   configured: Boolean(process.env.OPENAI_API_KEY),
 
   async generateText(request: AiRequest): Promise<AiTextResult> {
-    const text = await complete(modelFor(request.taskType), request.prompt);
+    const model = typeof request.context?.model === "string" ? request.context.model : modelFor(request.taskType);
+    const systemPrompt = typeof request.context?.systemPrompt === "string" ? request.context.systemPrompt : undefined;
+    const jsonMode = request.context?.jsonMode === true;
+
+    let text: string;
+    if (jsonMode) {
+      const msgs: MessageParam[] = [];
+      if (systemPrompt) msgs.push({ role: "system", content: systemPrompt });
+      msgs.push({ role: "user", content: request.prompt });
+      const res = await getClient().chat.completions.create({
+        model, messages: msgs, max_tokens: 3000, temperature: 0.2,
+        response_format: { type: "json_object" }
+      });
+      text = res.choices[0]?.message?.content ?? "{}";
+    } else {
+      text = await complete(model, request.prompt, systemPrompt);
+    }
+
     return { provider: "openai", text, confidence: 0.9, mocked: false };
   },
 

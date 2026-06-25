@@ -23,9 +23,19 @@ function SimpleList({ title, subtitle, endpoint, create, fields }: { title: stri
 
 type DraftPayload = {
   draft: string;
+  // PBRE fields (present for AI-generated drafts; absent for legacy/template items)
+  conversationType?: string;
+  conversationStage?: string;
+  leadScore?: string;
+  leadScoreReason?: string;
+  riskReason?: string;
+  missingQualificationItems?: string[];
+  suggestedNextActions?: string[];
+  adminReasoningSummary?: string;
+  // Core fields
   riskLevel: string;
-  knowledgeUsed: { title: string; category: string; reliability: string }[];
-  memoryUsed: { personName: string; trustLevel: string; context: string }[];
+  knowledgeUsed: { title: string; category: string; reliability: string; relevance?: string }[];
+  memoryUsed: { personName: string; trustLevel: string; context: string; relevance?: string }[];
   approvalRequired: boolean;
   safetyNotes: string;
   provider: string;
@@ -43,26 +53,87 @@ function reliabilityTone(r: string): "green" | "blue" | "neutral" {
   return "neutral";
 }
 
+function kRelevanceTone(r: string): "green" | "blue" | "neutral" {
+  if (r === "high") return "green";
+  if (r === "medium") return "blue";
+  return "neutral";
+}
+
+function mRelevanceTone(r: string): "red" | "blue" | "neutral" {
+  if (r === "critical") return "red";
+  if (r === "useful") return "blue";
+  return "neutral";
+}
+
+function leadScoreTone(s: string): "green" | "blue" | "gold" | "neutral" {
+  if (s === "A" || s === "A+") return "green";
+  if (s === "B") return "blue";
+  if (s === "C") return "gold";
+  return "neutral";
+}
+
 function DraftPayloadView({ raw }: { raw: string }) {
   const p = parseDraft(raw);
   if (!p) return <pre style={{ whiteSpace: "pre-wrap" }}>{raw}</pre>;
+
+  const isPBRE = Boolean(p.conversationType || p.leadScore);
+
   return <div>
-    <h4 style={{ margin: "0 0 8px" }}>Draft reply</h4>
+    {isPBRE && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+      {p.conversationType && <Badge tone="blue">{p.conversationType}</Badge>}
+      {p.conversationStage && <Badge>{p.conversationStage}</Badge>}
+      {p.leadScore && <Badge tone={leadScoreTone(p.leadScore)}>Score {p.leadScore}</Badge>}
+    </div>}
+    {p.leadScoreReason && <p style={{ fontSize: 13, margin: "0 0 4px", color: "#64748b" }}><strong>Lead:</strong> {p.leadScoreReason}</p>}
+    {p.riskReason && <p style={{ fontSize: 13, margin: "0 0 10px", color: "#64748b" }}><strong>Risk:</strong> {p.riskReason}</p>}
+
+    <h4 style={{ margin: "0 0 6px" }}>Draft reply</h4>
     <pre style={{ whiteSpace: "pre-wrap", marginBottom: 10 }}>{p.draft}</pre>
+
+    {(p.missingQualificationItems?.length ?? 0) > 0 && <div style={{ marginBottom: 10 }}>
+      <strong style={{ fontSize: 13 }}>Missing qualification ({p.missingQualificationItems!.length})</strong>
+      <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+        {p.missingQualificationItems!.map((item, i) => <li key={i} style={{ fontSize: 13 }}>{item}</li>)}
+      </ul>
+    </div>}
+
+    {(p.suggestedNextActions?.length ?? 0) > 0 && <div style={{ marginBottom: 10 }}>
+      <strong style={{ fontSize: 13 }}>Suggested next actions</strong>
+      <ol style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+        {p.suggestedNextActions!.map((action, i) => <li key={i} style={{ fontSize: 13 }}>{action}</li>)}
+      </ol>
+    </div>}
+
     {p.safetyNotes && <div style={{ background: "#fff8e6", border: "1px solid #d5b56f", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 13 }}><strong>Safety:</strong> {p.safetyNotes}</div>}
+
     {p.knowledgeUsed.length > 0 && <div style={{ marginBottom: 8 }}>
-      <strong>Knowledge used ({p.knowledgeUsed.length})</strong>
+      <strong style={{ fontSize: 13 }}>Knowledge used ({p.knowledgeUsed.length})</strong>
       <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
-        {p.knowledgeUsed.map((k, i) => <li key={i} style={{ marginBottom: 3, fontSize: 13 }}>{k.title} <span style={{ color: "#64748b" }}>({k.category})</span> <Badge tone={reliabilityTone(k.reliability)}>{k.reliability}</Badge></li>)}
+        {p.knowledgeUsed.map((k, i) => <li key={i} style={{ marginBottom: 3, fontSize: 13 }}>
+          {k.title} <span style={{ color: "#64748b" }}>({k.category})</span>{" "}
+          <Badge tone={reliabilityTone(k.reliability)}>{k.reliability}</Badge>{" "}
+          {k.relevance && <Badge tone={kRelevanceTone(k.relevance)}>{k.relevance}</Badge>}
+        </li>)}
       </ul>
     </div>}
+
     {p.memoryUsed.length > 0 && <div style={{ marginBottom: 8 }}>
-      <strong>Memory context ({p.memoryUsed.length})</strong>
+      <strong style={{ fontSize: 13 }}>Memory context ({p.memoryUsed.length})</strong>
       <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
-        {p.memoryUsed.map((m, i) => <li key={i} style={{ fontSize: 13 }}>{m.personName} <span style={{ color: "#64748b" }}>trust: {m.trustLevel}</span>{m.context ? ` — ${m.context}` : ""}</li>)}
+        {p.memoryUsed.map((m, i) => <li key={i} style={{ fontSize: 13 }}>
+          {m.personName} <span style={{ color: "#64748b" }}>trust: {m.trustLevel}</span>{" "}
+          {m.relevance && <Badge tone={mRelevanceTone(m.relevance)}>{m.relevance}</Badge>}
+          {m.context ? ` — ${m.context}` : ""}
+        </li>)}
       </ul>
     </div>}
-    <div className="meta" style={{ marginTop: 6 }}>
+
+    {p.adminReasoningSummary && <details style={{ marginBottom: 8 }}>
+      <summary style={{ fontSize: 13, cursor: "pointer", color: "#64748b" }}>Admin reasoning</summary>
+      <pre style={{ fontSize: 12, whiteSpace: "pre-wrap", margin: "6px 0 0", padding: "8px 12px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 4 }}>{p.adminReasoningSummary}</pre>
+    </details>}
+
+    <div className="meta" style={{ marginTop: 8 }}>
       <Badge tone={p.mocked ? "neutral" : "green"}>{p.provider}</Badge>
       {p.mocked && <Badge>mocked</Badge>}
       {p.approvalRequired && <Badge tone="red">approval required</Badge>}
