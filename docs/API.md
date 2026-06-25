@@ -61,3 +61,9 @@ Base URL: `/api`
 ## Settings
 
 - `GET /settings/ai-providers`
+
+## Agent Runtime Context
+
+`GET /api/agents/:slug/context` returns the selected agent, bootstrap profile, agent-scoped knowledge entries, relationship memory, assets, recent tasks, pending approvals and safety guardrails.
+
+Use `/api/agents/yacht-broker/context` to verify that the Yacht Broker Agent memory has been loaded from Supabase.

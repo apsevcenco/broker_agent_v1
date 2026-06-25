@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import type { AgentDefinition } from "../../shared/types";
+import type { AgentDefinition, ApprovalItem, AgentTask, KnowledgeEntry, ManagedAsset, MemoryEntry } from "../../shared/types";
 import { Badge, Empty, PageHeader, Stat } from "../components/UI";
 import { api, postJson } from "../services/api";
 
@@ -17,7 +17,18 @@ type AgentKnowledgeProfile = {
 type AgentWorkspace = {
   agent: AgentDefinition;
   counts: { inbox: number; leads: number; tasks: number; approvals: number; memory: number; knowledge: number; assets: number };
-  recent: { memory: any[]; tasks: any[]; approvals: any[]; activity: any[] };
+  recent: { memory: MemoryEntry[]; tasks: AgentTask[]; approvals: ApprovalItem[]; activity: any[] };
+};
+
+type AgentContext = {
+  agent: AgentDefinition;
+  profile: AgentKnowledgeProfile | null;
+  knowledge: KnowledgeEntry[];
+  memory: MemoryEntry[];
+  assets: ManagedAsset[];
+  tasks: AgentTask[];
+  approvals: ApprovalItem[];
+  safety: { draftOnly: boolean; requiresApproval: string[] };
 };
 
 export function Agents() {
@@ -40,11 +51,13 @@ export function AgentDetail({ slug }: { slug: string }) {
   const [agent, setAgent] = useState<AgentDefinition | null>(null);
   const [workspace, setWorkspace] = useState<AgentWorkspace | null>(null);
   const [profile, setProfile] = useState<AgentKnowledgeProfile | null>(null);
+  const [context, setContext] = useState<AgentContext | null>(null);
   const [memoryName, setMemoryName] = useState("");
   const load = () => {
     void api<AgentDefinition>(`/api/agents/${slug}`).then(setAgent);
     void api<AgentWorkspace>(`/api/agents/${slug}/workspace`).then(setWorkspace);
     void api<{ profile: AgentKnowledgeProfile | null }>(`/api/agents/${slug}/profile`).then(data => setProfile(data.profile));
+    void api<AgentContext>(`/api/agents/${slug}/context`).then(setContext);
   };
   useEffect(load, [slug]);
   if (!agent) return null;
@@ -67,12 +80,17 @@ export function AgentDetail({ slug }: { slug: string }) {
       <div className="panel"><h2>Bootstrap Knowledge</h2><p>{profile.mission}</p><h3>Core workflows</h3><ul>{profile.workflows.map(item => <li key={item}>{item}</li>)}</ul><h3>Domain knowledge</h3><ul>{profile.domainKnowledge.map(item => <li key={item}>{item}</li>)}</ul></div>
       <div className="panel"><h2>Risk & Language</h2><h3>Risk rules</h3><ul>{profile.riskRules.map(item => <li key={item}>{item}</li>)}</ul><h3>Qualification signals</h3><p>{profile.qualificationSignals.join(", ")}</p><h3>Vocabulary</h3><p>{profile.vocabulary.join(", ")}</p></div>
     </section>}
+    {context && <section className="two-col">
+      <div className="panel"><h2>Loaded Knowledge Memory</h2><p>{context.knowledge.length} verified operating entries are available to this agent.</p>{context.knowledge.length ? context.knowledge.slice(0, 6).map(item => <article className="row" key={item.id}><strong>{item.title}</strong><span>{item.category}</span></article>) : <Empty text="Run the Yacht Broker Agent memory migration in Supabase to load entries." />}</div>
+      <div className="panel"><h2>Context Guardrails</h2><p>Draft only: {context.safety.draftOnly ? "yes" : "no"}</p><h3>Approval required for</h3><ul>{context.safety.requiresApproval.map(item => <li key={item}>{item}</li>)}</ul></div>
+    </section>}
     {workspace && <section className="stats-grid">
       <Stat label="Inbox" value={workspace.counts.inbox} />
       <Stat label="Leads" value={workspace.counts.leads} />
       <Stat label="Tasks" value={workspace.counts.tasks} />
       <Stat label="Approvals" value={workspace.counts.approvals} />
       <Stat label="Memory" value={workspace.counts.memory} />
+      <Stat label="Knowledge" value={workspace.counts.knowledge} />
       <Stat label="Assets" value={workspace.counts.assets} />
     </section>}
     <section className="two-col">

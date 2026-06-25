@@ -16,3 +16,15 @@ Responsibilities:
 - Yacht-specific knowledge and memory suggestions
 
 The agent must not send external messages automatically in V1. It prepares drafts, recommendations and tasks for admin approval.
+
+## Loaded Knowledge Memory
+
+The Yacht Broker Agent has a dedicated Supabase seed migration:
+`supabase/migrations/20260625120000_yacht_broker_knowledge_memory.sql`.
+
+Run it in the Supabase SQL editor after the base schema migrations. It loads verified operating knowledge for buyer qualification, seller qualification, off-market confidentiality, NDA/document disclosure, broker cooperation, distressed yacht handling, commission safety, lead scoring, tone, asset data and relationship memory rules.
+
+The backend exposes this assembled runtime context at:
+`GET /api/agents/yacht-broker/context`.
+
+This context is intended to be passed into future AI calls before drafting replies or creating tasks.

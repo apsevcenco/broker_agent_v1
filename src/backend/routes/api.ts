@@ -35,6 +35,39 @@ router.get("/agents/:slug/profile", asyncRoute(async (req, res) => {
   if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
   res.json({ agent, profile: findAgentKnowledgeProfile(agent.slug) });
 }));
+router.get("/agents/:slug/context", asyncRoute(async (req, res) => {
+  const agent = await repository.findAgentBySlug(String(req.params.slug));
+  if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
+  const [knowledge, memory, assets, tasks, approvals] = await Promise.all([
+    repository.listKnowledge(),
+    repository.listMemory(),
+    repository.listAssets(),
+    repository.listTasks(),
+    repository.listApprovals()
+  ]);
+  res.json({
+    agent,
+    profile: findAgentKnowledgeProfile(agent.slug),
+    knowledge: byAgent(knowledge, agent.id),
+    memory: byAgent(memory, agent.id),
+    assets: byAgent(assets, agent.id),
+    tasks: byAgent(tasks, agent.id).slice(0, 10),
+    approvals: byAgent(approvals, agent.id).filter((item) => item.status === "pending"),
+    safety: {
+      draftOnly: true,
+      requiresApproval: [
+        "off-market yacht identity",
+        "owner identity",
+        "exact location",
+        "commercial terms",
+        "commission language",
+        "document disclosure",
+        "legal/tax/flag advice",
+        "binding offer language"
+      ]
+    }
+  });
+}));
 router.get("/agents/:slug/workspace", asyncRoute(async (req, res) => {
   const agent = await repository.findAgentBySlug(String(req.params.slug));
   if (!agent) { res.status(404).json({ error: "Agent not found" }); return; }
@@ -284,6 +317,7 @@ router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => 
 });
 
 export default router;
+
 
 
 
