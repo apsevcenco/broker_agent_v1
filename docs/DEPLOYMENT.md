@@ -77,3 +77,13 @@ or:
 ```
 
 Use memory mode only for local development. Render should use Supabase.
+
+## Existing Supabase Upgrade
+
+If you already ran the old Yacht Broker schema, run this additive migration instead of re-running the original full schema:
+
+```text
+supabase/migrations/20260625090000_luxury_mobility_os_upgrade.sql
+```
+
+It creates agents/assets/vehicles/memory_entries if missing, adds agent_id columns, preserves existing records and assigns existing data to `yacht-broker-agent`.
