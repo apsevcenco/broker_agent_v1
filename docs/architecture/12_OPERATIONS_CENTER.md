@@ -1,6 +1,6 @@
 ﻿# AI Operations Center UX Blueprint
 
-Proposed file path: `docs/architecture/AI_OPERATIONS_CENTER_UX_BLUEPRINT.md`
+Proposed file path: `docs/architecture/12_OPERATIONS_CENTER.md`
 
 ## 1. Product Purpose
 
@@ -462,3 +462,4 @@ Displays raw payload, raw JSON, provider metadata and internal IDs. Collapsed by
 - Do not bury the draft/output below technical reasoning.
 - Do not require operators to read long AI reasoning before seeing the proposed action.
 - Do not break legacy approval items.
+

@@ -474,3 +474,4 @@ Case Engine will later support:
 - Marketplace integrations
 
 These extensions should not require changing the core architecture.
+
