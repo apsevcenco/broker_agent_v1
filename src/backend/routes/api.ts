@@ -235,6 +235,13 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
   };
 
   const intelligence = await CoreIntelligenceEngine.execute("yacht-broker", context);
+  const approvalPayload = {
+    ...intelligence.draft,
+    draft: typeof intelligence.draft.draft === "string"
+      ? intelligence.draft.draft
+      : intelligence.execution.draftContent,
+    intelligence
+  };
 
   message.status = "reply suggested";
   await repository.updateMessage(message);
@@ -245,7 +252,7 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
     agentId,
     type:             "suggested reply",
     title:            `Reply draft for ${message.senderName}`,
-    payload:          JSON.stringify(intelligence.draft),
+    payload:          JSON.stringify(approvalPayload),
     status:           "pending",
     riskLevel:        intelligence.reasoning.riskLevel as "low" | "medium" | "high" | "critical",
     relatedMessageId: message.id,
@@ -257,7 +264,7 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
     `Draft via CIE/${intelligence.profileId} (${intelligence.execution.draftProvider}${intelligence.execution.draftMocked ? ", mocked" : ""})`,
     message.agentId
   );
-  res.json({ approval, draft: intelligence.draft });
+  res.json({ approval, draft: intelligence.draft, intelligence });
 }));
 
 router.get("/leads", asyncRoute(async (req, res) => {
@@ -367,6 +374,7 @@ router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => 
 });
 
 export default router;
+
 
 
 
