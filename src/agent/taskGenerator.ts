@@ -6,6 +6,7 @@ export function generateTasks(message: InboxMessage, score: LeadScore): AgentTas
   return [
     {
       id: crypto.randomUUID(),
+      agentId: message.agentId,
       type: "reply draft",
       title: `Review reply for ${message.senderName}`,
       description: "Review the agent draft and approve, edit or reject before external use.",
@@ -16,6 +17,7 @@ export function generateTasks(message: InboxMessage, score: LeadScore): AgentTas
     },
     {
       id: crypto.randomUUID(),
+      agentId: message.agentId,
       type: "qualify lead",
       title: `Qualify ${message.senderName}`,
       description: "Confirm role, authority, budget/timeline where relevant, and confidentiality requirements.",

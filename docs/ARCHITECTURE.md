@@ -47,3 +47,7 @@ Agent workspace endpoints expose filtered context:
 - `GET /api/assets?agentId=...`
 
 Admin notes remain authoritative. Agent-learned observations should be treated as suggestions unless approved.
+
+## Agent Inbox Routing
+
+Inbox messages can be assigned to a specific agent at creation time. Downstream classification, lead creation, task generation, approvals and activity logs preserve the same `agent_id`, so each agent workspace receives only its own operational context.

@@ -92,7 +92,7 @@ router.get("/inbox", asyncRoute(async (req, res) => {
 router.post("/inbox/message", asyncRoute(async (req, res) => {
   const message: InboxMessage = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, status: "new", createdAt: now(), ...req.body };
   const created = await repository.createMessage(message);
-  await repository.logActivity("admin", "message_created", `Manual message from ${message.senderName}`);
+  await repository.logActivity("admin", "message_created", `Manual message from ${message.senderName}`, message.agentId);
   res.status(201).json(created);
 }));
 
@@ -107,7 +107,7 @@ router.post("/inbox/:id/classify", asyncRoute(async (req, res) => {
 
   const leadScore = scoreLead(message);
   const leads = await repository.listLeads();
-  const existingLead = leads.find((lead) => lead.name.toLowerCase() === message.senderName.toLowerCase());
+  const existingLead = leads.find((lead) => lead.agentId === (message.agentId || activeAgentId) && lead.name.toLowerCase() === message.senderName.toLowerCase());
   if (existingLead) {
     await repository.updateLead(existingLead.id, {
       leadScore,
@@ -134,6 +134,7 @@ router.post("/inbox/:id/classify", asyncRoute(async (req, res) => {
   await repository.createTasks(tasks);
   await repository.createApproval({
     id: crypto.randomUUID(),
+    agentId: message.agentId || activeAgentId,
     type: "suggested lead score",
     title: `Approve lead score ${leadScore} for ${message.senderName}`,
     payload: `Classification: ${message.classification}\nRisk: ${message.riskLevel}\nMemory: ${suggestMemoryUpdate(message)}`,
@@ -142,7 +143,7 @@ router.post("/inbox/:id/classify", asyncRoute(async (req, res) => {
     relatedMessageId: message.id,
     createdAt: now()
   });
-  await repository.logActivity("agent", "message_classified", `${message.senderName}: ${message.classification}, score ${leadScore}, risk ${message.riskLevel}`);
+  await repository.logActivity("agent", "message_classified", `${message.senderName}: ${message.classification}, score ${leadScore}, risk ${message.riskLevel}`, message.agentId);
   res.json({ message, leadScore, tasksCreated: tasks.length });
 }));
 
@@ -157,6 +158,7 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
 
   const approval = await repository.createApproval({
     id: crypto.randomUUID(),
+    agentId: message.agentId || activeAgentId,
     type: "suggested reply",
     title: `Reply draft for ${message.senderName}`,
     payload: draft,
@@ -165,7 +167,7 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
     relatedMessageId: message.id,
     createdAt: now()
   });
-  await repository.logActivity("agent", "reply_drafted", `Draft reply prepared for ${message.senderName}`);
+  await repository.logActivity("agent", "reply_drafted", `Draft reply prepared for ${message.senderName}`, message.agentId);
   res.json(approval);
 }));
 
@@ -175,19 +177,19 @@ router.get("/leads", asyncRoute(async (req, res) => {
 router.post("/leads", asyncRoute(async (req, res) => {
   const lead: Lead = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, relationshipHistory: [], leadScore: "C", status: "new", ...req.body };
   const created = await repository.createLead(lead);
-  await repository.logActivity("admin", "lead_created", lead.name);
+  await repository.logActivity("admin", "lead_created", lead.name, lead.agentId);
   res.status(201).json(created);
 }));
 router.patch("/leads/:id", asyncRoute(async (req, res) => {
   const lead = await repository.updateLead(routeId(req), req.body);
   if (!lead) { res.status(404).json({ error: "Lead not found" }); return; }
-  await repository.logActivity("admin", "lead_updated", lead.name);
+  await repository.logActivity("admin", "lead_updated", lead.name, lead.agentId);
   res.json(lead);
 }));
 router.post("/leads/:id/score", asyncRoute(async (req, res) => {
   const lead = await repository.updateLead(routeId(req), { leadScore: req.body.leadScore });
   if (!lead) { res.status(404).json({ error: "Lead not found" }); return; }
-  await repository.logActivity("agent", "lead_scored", `${lead.name}: ${lead.leadScore}`);
+  await repository.logActivity("agent", "lead_scored", `${lead.name}: ${lead.leadScore}`, lead.agentId);
   res.json(lead);
 }));
 
@@ -197,13 +199,13 @@ router.get("/tasks", asyncRoute(async (req, res) => {
 router.post("/tasks", asyncRoute(async (req, res) => {
   const task: AgentTask = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, createdAt: now(), status: "new", priority: "medium", ...req.body };
   const created = await repository.createTask(task);
-  await repository.logActivity("admin", "task_created", task.title);
+  await repository.logActivity("admin", "task_created", task.title, task.agentId);
   res.status(201).json(created);
 }));
 router.patch("/tasks/:id", asyncRoute(async (req, res) => {
   const task = await repository.updateTask(routeId(req), req.body);
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
-  await repository.logActivity("admin", "task_updated", task.title);
+  await repository.logActivity("admin", "task_updated", task.title, task.agentId);
   res.json(task);
 }));
 
@@ -213,13 +215,13 @@ router.get("/approvals", asyncRoute(async (req, res) => {
 router.post("/approvals/:id/approve", asyncRoute(async (req, res) => {
   const approval = await repository.updateApproval(routeId(req), { payload: req.body.payload, status: "approved" });
   if (!approval) { res.status(404).json({ error: "Approval not found" }); return; }
-  await repository.logActivity("admin", "approval_approved", approval.title);
+  await repository.logActivity("admin", "approval_approved", approval.title, approval.agentId);
   res.json(approval);
 }));
 router.post("/approvals/:id/reject", asyncRoute(async (req, res) => {
   const approval = await repository.updateApproval(routeId(req), { status: "rejected" });
   if (!approval) { res.status(404).json({ error: "Approval not found" }); return; }
-  await repository.logActivity("admin", "approval_rejected", approval.title);
+  await repository.logActivity("admin", "approval_rejected", approval.title, approval.agentId);
   res.json(approval);
 }));
 
@@ -229,13 +231,13 @@ router.get("/memory", asyncRoute(async (req, res) => {
 router.post("/memory", asyncRoute(async (req, res) => {
   const entry: MemoryEntry = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, pastInteractions: [], trustLevel: "unknown", updatedAt: now(), ...req.body };
   const created = await repository.createMemory(entry);
-  await repository.logActivity("admin", "memory_created", entry.personName);
+  await repository.logActivity("admin", "memory_created", entry.personName, entry.agentId);
   res.status(201).json(created);
 }));
 router.patch("/memory/:id", asyncRoute(async (req, res) => {
   const entry = await repository.updateMemory(routeId(req), { ...req.body, updatedAt: now() });
   if (!entry) { res.status(404).json({ error: "Memory entry not found" }); return; }
-  await repository.logActivity("admin", "memory_updated", entry.personName);
+  await repository.logActivity("admin", "memory_updated", entry.personName, entry.agentId);
   res.json(entry);
 }));
 
@@ -246,13 +248,13 @@ router.get("/knowledge", asyncRoute(async (req, res) => {
 router.post("/knowledge", asyncRoute(async (req, res) => {
   const entry: KnowledgeEntry = { id: crypto.randomUUID(), agentId: req.body.agentId || activeAgentId, createdAt: now(), updatedAt: now(), tags: [], reliabilityLevel: "medium", ...req.body };
   const created = await repository.createKnowledge(entry);
-  await repository.logActivity("admin", "knowledge_created", entry.title);
+  await repository.logActivity("admin", "knowledge_created", entry.title, entry.agentId);
   res.status(201).json(created);
 }));
 router.patch("/knowledge/:id", asyncRoute(async (req, res) => {
   const entry = await repository.updateKnowledge(routeId(req), { ...req.body, updatedAt: now() });
   if (!entry) { res.status(404).json({ error: "Knowledge entry not found" }); return; }
-  await repository.logActivity("admin", "knowledge_updated", entry.title);
+  await repository.logActivity("admin", "knowledge_updated", entry.title, entry.agentId);
   res.json(entry);
 }));
 router.delete("/knowledge/:id", asyncRoute(async (req, res) => {
@@ -276,6 +278,8 @@ router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => 
 });
 
 export default router;
+
+
 
 
 
