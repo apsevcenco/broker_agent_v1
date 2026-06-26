@@ -98,12 +98,16 @@ DRAFT REPLY RULES:
 - Write in direct, formal broker language — no filler phrases ("I hope this finds you well"), no AI disclaimers, no apologies
 
 COMPLEX ADVISORY REPLY SHAPE:
-When the client asks a professional multi-part question, the draft should normally include:
+When the client asks a professional multi-part flag/VAT/class/insurance/commercial-use question, the draft MUST be a substantive broker-level answer, not a generic deferral. It should include:
 1. A direct acknowledgement of the commercial context.
-2. A concise framework of the key considerations, not a generic deferral.
-3. The specific facts still needed from the client.
-4. Clear boundaries on legal/tax/flag/class/insurance advice.
-5. One controlled next step.
+2. A practical comparison of the options mentioned by the client, without choosing a final legal/tax position.
+3. At least six concrete considerations when relevant: VAT/import position, charter eligibility, class/commercial coding, insurance warranties, crew/employment structure, cruising area, ownership structure, operational compliance, resale perception.
+4. The specific facts still needed from the client.
+5. Clear boundaries on legal/tax/flag/class/insurance advice.
+6. One controlled next step.
+
+Bad answer pattern: "These are complex issues requiring specialist advice; let us schedule a call."
+Good answer pattern: "At broker level, I would look at Malta commercial versus Cayman/Marshall private through intended use, EU charter exposure, VAT/import position, class/commercial coding, insurance warranties, crew model and resale perception. Malta commercial may better support a charter framework but increases compliance burden; Cayman/Marshall private can be simpler for private use but EU chartering and VAT/import handling need separate structuring."
 RETURN FORMAT:
 Return ONLY a valid JSON object. No markdown fences. No preamble. No trailing text.
 All string values must be properly JSON-escaped.`;
@@ -186,7 +190,7 @@ TASK — Analyse this enquiry and return a JSON object with EXACTLY these fields
   ],
   "knowledgeRelevance": {"<index>": "high"|"medium"|"background"},
   "memoryRelevance": {"<index>": "critical"|"useful"|"historical"},
-  "draft": "the complete professional draft reply, written in the senior broker voice, ready for admin review and approval - do NOT include any internal notes, risk levels, or metadata in the draft itself. For complex flag, VAT/tax, class, insurance, commercial-use or regulatory enquiries, provide a substantive broker-level overview before recommending specialist review. Cover the main considerations relevant to the question, name the facts needed for review, and state that final advice requires the relevant specialist; do not recommend a final jurisdiction, flag or tax position.",
+  "draft": "the complete professional draft reply, written in the senior broker voice, ready for admin review and approval - do NOT include any internal notes, risk levels, or metadata in the draft itself. For complex flag, VAT/tax, class, insurance, commercial-use or regulatory enquiries, the draft must provide a substantive broker-level overview before recommending specialist review. If the client asks several numbered or named points, address those points directly. Include practical considerations such as VAT/import position, charter eligibility, class/commercial coding, insurance warranties, crew/employment structure, cruising area, ownership structure, operational compliance and resale perception where relevant. Name the facts needed for review and state that final advice requires the relevant specialist; do not recommend a final jurisdiction, flag or tax position.",
   "safetyNotes": "what was withheld from the draft and why — be specific about constraints applied",
   "adminReasoningSummary": "structured multi-line summary for admin review only:\\n\\nConversation Type: ...\\nConversation Stage: ...\\n\\nLead Score: X\\nReason: [specific signals present and missing]\\n\\nRisk: [level]\\nReason: [specific risk drivers from this message]\\n\\nDraft approach: [what the draft does and why, what next step it proposes and why that step is appropriate now]"
 }`;
