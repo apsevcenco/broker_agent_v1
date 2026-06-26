@@ -52,6 +52,40 @@ function specialistReviewTopics(message: InboxMessage, pbre: DraftReplyResult): 
   return SPECIALIST_REVIEW_TERMS.filter((term) => text.includes(term));
 }
 
+const NDA_DISCLOSURE_TERMS = [
+  "specific yacht",
+  "yacht identity",
+  "owner identity",
+  "owner name",
+  "exact location",
+  "private documents",
+  "data room",
+  "teaser",
+  "off-market listing",
+  "listing details",
+  "controlled disclosure",
+  "confidential documents"
+];
+
+function shouldRequestNda(action: string, message: InboxMessage, pbre: DraftReplyResult): boolean {
+  const actionText = action.toLowerCase();
+  const messageText = message.body.toLowerCase();
+  const contextText = [
+    message.body,
+    pbre.riskReason,
+    pbre.safetyNotes,
+    pbre.adminReasoningSummary,
+    pbre.conversationStage
+  ].join(" ").toLowerCase();
+  const requiresControlledDisclosure = NDA_DISCLOSURE_TERMS.some(
+    (term) => contextText.includes(term) || actionText.includes(term)
+  );
+
+  if (messageText.includes("nda") || messageText.includes("non-disclosure")) return true;
+  if (pbre.conversationStage === "Disclosure" && requiresControlledDisclosure) return true;
+
+  return actionText.includes("nda") && requiresControlledDisclosure;
+}
 function buildSpecialistReviewToolRequest(
   message: InboxMessage,
   pbre: DraftReplyResult,
@@ -108,6 +142,8 @@ function mapActionToToolRequest(
   }
 
   if (a.includes("nda") || (a.includes("document") && a.includes("request"))) {
+    if (!shouldRequestNda(action, message, pbre)) return null;
+
     return {
       ...base("document.requestNda", "high", "high"),
       category: "DOCUMENT",
@@ -116,7 +152,7 @@ function mapActionToToolRequest(
         company:     message.senderCompany ?? undefined,
         enquiryType: pbre.conversationType
       },
-      expectedOutput: "NDA draft prepared and sent to admin for review before contacting the prospect."
+      expectedOutput: "NDA draft prepared and routed to admin review before any controlled disclosure."
     };
   }
 
