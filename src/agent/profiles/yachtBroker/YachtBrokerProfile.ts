@@ -23,6 +23,63 @@ function inferStepType(action: string): ExecutionStepType {
   return "store_experience";
 }
 
+const SPECIALIST_REVIEW_TERMS = [
+  "tax",
+  "vat",
+  "flag",
+  "registration",
+  "class",
+  "insurance",
+  "legal",
+  "solas",
+  "marpol",
+  "mlc",
+  "ism",
+  "isps",
+  "commercial use",
+  "charter"
+];
+
+function specialistReviewTopics(message: InboxMessage, pbre: DraftReplyResult): string[] {
+  const text = [
+    message.body,
+    pbre.riskReason,
+    pbre.safetyNotes,
+    pbre.adminReasoningSummary,
+    ...pbre.missingQualificationItems
+  ].join(" ").toLowerCase();
+
+  return SPECIALIST_REVIEW_TERMS.filter((term) => text.includes(term));
+}
+
+function buildSpecialistReviewToolRequest(
+  message: InboxMessage,
+  pbre: DraftReplyResult,
+  topics: string[]
+): ToolRequest {
+  const policy = resolvePolicy("task.create");
+
+  return {
+    id: crypto.randomUUID(),
+    tool: "task.create",
+    category: "TASK",
+    reason: "Specialist review required before responding on flag, tax, class, insurance or regulatory implications.",
+    priority: "critical",
+    approvalRequired: policy.requiresApproval,
+    status: "proposed",
+    riskLevel: "high",
+    createdAt: new Date().toISOString(),
+    input: {
+      title: `Specialist review for ${message.senderName}`,
+      contactName: message.senderName,
+      conversationType: pbre.conversationType,
+      riskLevel: pbre.riskLevel,
+      topics
+    },
+    expectedOutput: "Admin routes complex regulatory, tax or insurance questions to the appropriate specialist before external advice."
+  };
+}
+
 // Maps a plain-English suggested action string to a structured ToolRequest.
 // Returns null when no recognisable tool pattern is found.
 function mapActionToToolRequest(
@@ -191,6 +248,15 @@ export const YachtBrokerProfile: ReasoningProfile = {
     const toolRequests: ToolRequest[] = pbre.suggestedNextActions
       .map((action, i) => mapActionToToolRequest(action, message, pbre, i))
       .filter((r): r is ToolRequest => r !== null);
+
+    const specialistTopics = specialistReviewTopics(message, pbre);
+    if (
+      pbre.riskLevel === "critical" &&
+      specialistTopics.length > 0 &&
+      !toolRequests.some((r) => r.tool === "task.create" && String(r.input?.title ?? "").toLowerCase().includes("specialist review"))
+    ) {
+      toolRequests.unshift(buildSpecialistReviewToolRequest(message, pbre, specialistTopics));
+    }
 
     const toolPlan = buildToolPlan(
       toolRequests,

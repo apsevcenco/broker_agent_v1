@@ -82,6 +82,8 @@ function scoreEntry(entry: KnowledgeEntry, terms: string[], intent: RetrievalInt
   const isNda = all.includes("nda") || all.includes("non-disclosure");
   const isCompliance = category.includes("safety and compliance") || includesAny(all, COMPLIANCE_TERMS);
   const isClosing = category.includes("contracts") || category.includes("deal flow") || includesAny(all, CLOSING_TERMS);
+  const isBuyerSpecific = title.includes("buyer") || all.includes("buyer qualification") || all.includes("family office");
+  const isSellerSpecific = title.includes("seller") || all.includes("seller qualification") || all.includes("seller mandate") || all.includes("authority to sell");
 
   if (intent.buyer) {
     if (title.includes("buyer") || all.includes("buyer qualification")) score += 34;
@@ -103,6 +105,9 @@ function scoreEntry(entry: KnowledgeEntry, terms: string[], intent: RetrievalInt
     if (all.includes("mandate") || all.includes("buyer qualification")) score += 10;
     if (isConfidentiality || isNda) score += 10;
   }
+
+  if (intent.buyer && isSellerSpecific && !intent.seller) score -= 28;
+  if (intent.seller && isBuyerSpecific && !intent.buyer) score -= 24;
 
   if (intent.nda && isNda) score += 22;
   if (intent.offMarket && isConfidentiality) score += 20;
