@@ -98,6 +98,38 @@ Qualification items include:
 - No platform bypassing.
 - No external communication from the system in V1.
 
+
+## Web Search Runner V1
+
+Lead Hunter Web Search V1 is available through:
+
+```text
+POST /api/lead-hunter/search/run
+```
+
+It uses Serper public web search when this environment variable is configured:
+
+```text
+SERPER_API_KEY=...
+```
+
+Optional environment configuration:
+
+```text
+LEAD_HUNTER_QUERIES=one query per line
+```
+
+If `SERPER_API_KEY` is missing, the endpoint returns `setupRequired: true` and creates no candidates. This prevents hidden failures and avoids uncontrolled scraping.
+
+The runner:
+
+- searches only public web results returned by the provider
+- deduplicates URLs
+- creates Inbox messages for each processed signal
+- runs Lead Hunter CIE analysis
+- creates pending approval items
+- never contacts prospects automatically
+
 ## Future Work
 
 - Scheduled search runner.

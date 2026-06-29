@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import apiRouter from "./routes/api";
 import knowledgeEngineRouter from "./routes/knowledgeEngine";
+import leadHunterSearchRouter from "./routes/leadHunterSearch";
 
 dotenv.config();
 
@@ -19,6 +20,7 @@ app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use("/api", apiRouter);
 app.use("/api/knowledge-engine", knowledgeEngineRouter);
+app.use("/api/lead-hunter/search", leadHunterSearchRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true, service: "Luxury Mobility AI OS" }));
 
@@ -32,4 +34,3 @@ if (existsSync(frontendDist)) {
 app.listen(port, () => {
   console.log(`Luxury Mobility AI OS running on http://localhost:${port}`);
 });
-

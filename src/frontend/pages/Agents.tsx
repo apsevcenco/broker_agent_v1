@@ -53,6 +53,8 @@ export function AgentDetail({ slug }: { slug: string }) {
   const [profile, setProfile] = useState<AgentKnowledgeProfile | null>(null);
   const [context, setContext] = useState<AgentContext | null>(null);
   const [memoryName, setMemoryName] = useState("");
+  const [searchTopic, setSearchTopic] = useState("");
+  const [searchStatus, setSearchStatus] = useState<string | null>(null);
   const load = () => {
     void api<AgentDefinition>(`/api/agents/${slug}`).then(setAgent);
     void api<AgentWorkspace>(`/api/agents/${slug}/workspace`).then(setWorkspace);
@@ -69,6 +71,20 @@ export function AgentDetail({ slug }: { slug: string }) {
     await postJson("/api/memory", { agentId: agent.id, personName: memoryName.trim(), role: "unknown", relationshipStatus: "new", trustLevel: "unknown", pastInteractions: [] });
     setMemoryName("");
     load();
+  }
+  async function runLeadSearch() {
+    setSearchStatus("Running public web lead search...");
+    try {
+      const result = await postJson<{ setupRequired?: boolean; message?: string; created?: number; processed?: number }>("/api/lead-hunter/search/run", { topic: searchTopic, limit: 8, perQuery: 3 });
+      if (result.setupRequired) {
+        setSearchStatus(result.message || "Search provider setup is required.");
+      } else {
+        setSearchStatus(`Created ${result.created ?? 0} lead candidate approval item(s) from ${result.processed ?? 0} processed result(s).`);
+        load();
+      }
+    } catch (error) {
+      setSearchStatus(error instanceof Error ? error.message : "Lead search failed.");
+    }
   }
   return <>
     <PageHeader title={agent.name} subtitle={agent.description} />
@@ -139,6 +155,19 @@ export function AgentDetail({ slug }: { slug: string }) {
       <section><h2>Yacht Broker Agent</h2><p>This is the first active module. It owns yacht-specific brokerage logic while using shared inbox, CRM, memory, tasks, approvals, assets and knowledge.</p></section>
     </>}
     {isCarRental && <section><h2>Planned Module</h2><p>Future architecture covers fleet database, vehicle profiles, daily/weekly/monthly prices, deposits, insurance, included kilometers, chauffeur pricing, airport transfers, weddings, delivery/pickup, availability, rental contract drafts and client qualification.</p></section>}
-    {isClientAcquisition && <section><h2>Safe Outreach Module</h2><p>This planned agent researches public prospects, prepares compliant outreach drafts, suggests target segments and creates follow-up tasks. In V1 it must not send messages, join chats, post ads, scrape platforms, bypass limits or impersonate people without explicit human-controlled integrations and approval.</p></section>}
+    {isClientAcquisition && <section>
+      <h2>Lead Hunter Search</h2>
+      <div className="panel">
+        <h3>Public Web Search V1</h3>
+        <p>Runs approved public-web search queries, creates lead candidate approvals, and never contacts prospects automatically.</p>
+        <div className="toolbar">
+          <input placeholder="Optional query, e.g. luxury car rental Monaco chauffeur" value={searchTopic} onChange={e => setSearchTopic(e.target.value)} />
+          <button onClick={runLeadSearch}>Run Search</button>
+        </div>
+        {searchStatus && <p className="ops-muted">{searchStatus}</p>}
+      </div>
+      <h2>Safe Outreach Module</h2>
+      <p>This active agent researches public prospects, prepares compliant outreach drafts, suggests target segments and creates follow-up tasks. In V1 it must not send messages, join chats, post ads, scrape platforms, bypass limits or impersonate people without explicit human-controlled integrations and approval.</p>
+    </section>}
   </>;
 }
