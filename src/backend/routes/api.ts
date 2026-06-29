@@ -202,7 +202,9 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
 
   const agentId        = message.agentId || activeAgentId;
   const classification = message.classification || classifyMessage(message);
-  const caseProfile    = "yacht-broker";
+  const agentDef       = defaultAgentDefinitions.find(a => a.id === agentId || a.slug === agentId);
+  const profileId      = agentDef?.slug === "client-acquisition" || agentId === "client-acquisition-agent" ? "lead-hunter" : "yacht-broker";
+  const caseProfile    = profileId;
 
   // ── Case Runtime V1 setup (non-blocking) ──────────────────────────────────
   let caseId:           string | undefined;
@@ -255,7 +257,7 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
     classification
   });
 
-  const intelligence = await CoreIntelligenceEngine.execute("yacht-broker", context);
+  const intelligence = await CoreIntelligenceEngine.execute(profileId, context);
 
   // ── Post-CIE events (non-blocking) ───────────────────────────────────────
   let intelligenceEventId: string | undefined;
@@ -349,7 +351,7 @@ router.post("/inbox/:id/suggest-reply", asyncRoute(async (req, res) => {
     id:               crypto.randomUUID(),
     agentId,
     type:             "suggested reply",
-    title:            `Reply draft for ${message.senderName}`,
+    title:            `${profileId === "lead-hunter" ? "Lead candidate" : "Reply draft"} for ${message.senderName}`,
     payload:          JSON.stringify(approvalPayload),
     status:           "pending",
     riskLevel:        intelligence.reasoning.riskLevel as "low" | "medium" | "high" | "critical",

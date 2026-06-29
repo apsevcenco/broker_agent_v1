@@ -2,18 +2,16 @@ import type { IntelligenceContext } from "./IntelligenceContext";
 import type { IntelligenceResponse } from "./IntelligenceResponse";
 import type { ReasoningProfile } from "../profiles/ReasoningProfile";
 import { YachtBrokerProfile } from "../profiles/yachtBroker/YachtBrokerProfile";
+import { LeadHunterProfile } from "../profiles/leadHunter/LeadHunterProfile";
 
 // ---------------------------------------------------------------------------
 // Profile registry
 // To add a new profile: import it and add an entry to this map.
-// CIE knows nothing about the profile's domain — it only orchestrates.
+// CIE knows nothing about the profile's domain - it only orchestrates.
 // ---------------------------------------------------------------------------
 const PROFILES = new Map<string, ReasoningProfile>([
-  ["yacht-broker", YachtBrokerProfile]
-  // Future profiles are registered here, e.g.:
-  // ["charter",     CharterProfile],
-  // ["marketing",   MarketingProfile],
-  // ["lead-hunter", LeadHunterProfile],
+  ["yacht-broker", YachtBrokerProfile],
+  ["lead-hunter", LeadHunterProfile]
 ]);
 
 function validate(response: IntelligenceResponse): IntelligenceResponse {
