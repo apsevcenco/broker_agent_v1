@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+﻿import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
 import type { InboxMessage } from "../../shared/types";
 import { CoreIntelligenceEngine } from "../../agent/core/CoreIntelligenceEngine";
@@ -10,14 +10,30 @@ const now = () => new Date().toISOString();
 const asyncRoute = (handler: (req: Request, res: Response) => Promise<void>) =>
   (req: Request, res: Response, next: NextFunction) => handler(req, res).catch(next);
 
-const DEFAULT_QUERIES = [
-  '"need" "luxury car rental" "Monaco"',
-  '"looking for" "Rolls-Royce" "chauffeur"',
-  '"need" "supercar rental" "Dubai"',
-  '"looking for" "yacht charter" "Mediterranean"',
-  '"family office" "yacht" "acquisition"',
-  '"need" "VIP transport" "Cannes"'
-];
+type BusinessLine = "yacht_sale" | "yacht_charter" | "car_rental" | "mixed";
+type RelevanceScore = "A" | "B" | "C" | "D";
+
+type LeadCampaignRequest = {
+  campaignName?: string;
+  businessLine?: BusinessLine;
+  offerBrief?: string;
+  targetSegments?: string;
+  geography?: string;
+  maxResults?: number;
+  searchQueries?: string[];
+  topic?: string;
+  limit?: number;
+  perQuery?: number;
+};
+
+type LeadCampaign = Required<Pick<LeadCampaignRequest, "businessLine">> & {
+  campaignName: string;
+  offerBrief: string;
+  targetSegments: string;
+  geography: string;
+  maxResults: number;
+  searchQueries: string[];
+};
 
 type SearchResult = {
   title: string;
@@ -26,23 +42,150 @@ type SearchResult = {
   query: string;
 };
 
-function configuredQueries(topic?: string) {
-  if (topic?.trim()) return [topic.trim()];
+type SearchQuality = {
+  accepted: boolean;
+  relevanceScore: RelevanceScore;
+  confidence: number;
+  reason: string;
+};
+
+const DEFAULT_QUERIES_BY_LINE: Record<BusinessLine, string[]> = {
+  yacht_sale: [
+    '"family office" "yacht" "acquisition"',
+    '"looking for" "motor yacht" "broker"',
+    '"sell my yacht" "broker"',
+    '"superyacht" "acquisition" "advisor"'
+  ],
+  yacht_charter: [
+    '"looking for" "yacht charter" "Mediterranean"',
+    '"luxury travel advisor" "yacht charter"',
+    '"concierge" "yacht charter" "Monaco"',
+    '"private client" "yacht charter"'
+  ],
+  car_rental: [
+    '"need" "luxury car rental" "Monaco"',
+    '"looking for" "Rolls-Royce" "chauffeur"',
+    '"VIP transfer" "Cannes"',
+    '"wedding" "luxury car rental"'
+  ],
+  mixed: [
+    '"family office" "yacht" "acquisition"',
+    '"looking for" "yacht charter" "Mediterranean"',
+    '"need" "luxury car rental" "Monaco"',
+    '"VIP transport" "Cannes"'
+  ]
+};
+
+const LINE_TERMS: Record<BusinessLine, string[]> = {
+  yacht_sale: ["yacht", "superyacht", "motor yacht", "family office", "acquisition", "broker", "manager", "wealth", "off-market", "seller", "sale"],
+  yacht_charter: ["yacht charter", "charter", "concierge", "travel advisor", "itinerary", "mediterranean", "summer", "broker", "family office"],
+  car_rental: ["car rental", "chauffeur", "vip transfer", "airport transfer", "wedding", "event", "rolls", "bentley", "ferrari", "lamborghini", "hotel", "villa", "private aviation"],
+  mixed: ["luxury", "mobility", "concierge", "family office", "vip", "yacht", "charter", "chauffeur", "rental"]
+};
+
+const INTENT_TERMS = ["looking for", "need", "request", "enquiry", "client", "principal", "family office", "advisor", "concierge", "broker", "manager", "vip", "private client"];
+const JUNK_TERMS = ["directory", "yellow pages", "top 10", "best 10", "seo", "wikipedia", "jobs", "career", "vacancy", "press release", "magazine", "news", "blog"];
+
+function asBusinessLine(value: unknown): BusinessLine {
+  return value === "yacht_sale" || value === "yacht_charter" || value === "car_rental" || value === "mixed" ? value : "mixed";
+}
+
+function splitList(value?: string) {
+  return String(value || "").split(/[,;\n]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeCampaign(body: LeadCampaignRequest): LeadCampaign {
+  const businessLine = asBusinessLine(body.businessLine);
+  const customQueries = Array.isArray(body.searchQueries)
+    ? body.searchQueries.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+  const topic = typeof body.topic === "string" && body.topic.trim() ? [body.topic.trim()] : [];
   const envQueries = process.env.LEAD_HUNTER_QUERIES
     ?.split("\n")
     .map((item) => item.trim())
-    .filter(Boolean);
-  return envQueries?.length ? envQueries : DEFAULT_QUERIES;
+    .filter(Boolean) || [];
+  const defaultQueries = DEFAULT_QUERIES_BY_LINE[businessLine];
+  const searchQueries = (customQueries.length ? customQueries : topic.length ? topic : envQueries.length ? envQueries : defaultQueries).slice(0, 8);
+
+  return {
+    campaignName: String(body.campaignName || "Lead Hunter Campaign").trim(),
+    businessLine,
+    offerBrief: String(body.offerBrief || "").trim(),
+    targetSegments: String(body.targetSegments || "").trim(),
+    geography: String(body.geography || "").trim(),
+    maxResults: Math.min(Math.max(Number(body.maxResults ?? body.limit) || 8, 1), 20),
+    searchQueries
+  };
+}
+
+function composeFallbackQuery(campaign: LeadCampaign) {
+  const parts = [
+    campaign.businessLine.replace("_", " "),
+    campaign.targetSegments,
+    campaign.geography,
+    campaign.offerBrief
+  ].filter(Boolean);
+  return parts.join(" ").trim();
 }
 
 function dedupe(results: SearchResult[]) {
   const seen = new Set<string>();
-  return results.filter((result) => {
-    const key = result.url || `${result.title}:${result.snippet}`;
-    if (seen.has(key)) return false;
+  const unique: SearchResult[] = [];
+  const duplicates: SearchResult[] = [];
+  for (const result of results) {
+    const key = (result.url || `${result.title}:${result.snippet}`).toLowerCase();
+    if (seen.has(key)) {
+      duplicates.push(result);
+      continue;
+    }
     seen.add(key);
-    return true;
-  });
+    unique.push(result);
+  }
+  return { unique, duplicates };
+}
+
+function scoreSearchResult(result: SearchResult, campaign: LeadCampaign): SearchQuality {
+  const text = [result.title, result.url, result.snippet, result.query].join(" ").toLowerCase();
+  const lineTerms = campaign.businessLine === "mixed"
+    ? [...LINE_TERMS.yacht_sale, ...LINE_TERMS.yacht_charter, ...LINE_TERMS.car_rental]
+    : LINE_TERMS[campaign.businessLine];
+  const targetTerms = splitList(campaign.targetSegments).map((item) => item.toLowerCase());
+  const geographyTerms = splitList(campaign.geography).map((item) => item.toLowerCase());
+  let points = 0;
+  const reasons: string[] = [];
+
+  const matchedLine = lineTerms.filter((term) => text.includes(term)).slice(0, 5);
+  points += matchedLine.length * 12;
+  if (matchedLine.length) reasons.push(`matched business terms: ${matchedLine.join(", ")}`);
+
+  const matchedTarget = targetTerms.filter((term) => text.includes(term)).slice(0, 4);
+  points += matchedTarget.length * 14;
+  if (matchedTarget.length) reasons.push(`matched target segment: ${matchedTarget.join(", ")}`);
+
+  const matchedGeo = geographyTerms.filter((term) => text.includes(term)).slice(0, 4);
+  points += matchedGeo.length * 10;
+  if (matchedGeo.length) reasons.push(`matched geography: ${matchedGeo.join(", ")}`);
+
+  if (INTENT_TERMS.some((term) => text.includes(term))) {
+    points += 14;
+    reasons.push("contains commercial intent or role signal");
+  }
+
+  if (JUNK_TERMS.some((term) => text.includes(term))) {
+    points -= 24;
+    reasons.push("generic directory/news/SEO result risk");
+  }
+
+  if (!result.url || text.length < 120) points -= 10;
+
+  const relevanceScore: RelevanceScore = points >= 58 ? "A" : points >= 40 ? "B" : points >= 24 ? "C" : "D";
+  const confidence = Number(Math.max(0.2, Math.min(0.94, points / 85)).toFixed(2));
+  return {
+    accepted: relevanceScore !== "D",
+    relevanceScore,
+    confidence,
+    reason: reasons.length ? reasons.join("; ") : "weak or generic public web signal"
+  };
 }
 
 async function serperSearch(query: string, limit: number): Promise<SearchResult[]> {
@@ -71,12 +214,23 @@ async function serperSearch(query: string, limit: number): Promise<SearchResult[
   })).filter((item) => item.url || item.snippet);
 }
 
-async function runLeadHunterOnResult(result: SearchResult) {
+async function activeAgentIds() {
+  const agents = await repository.listAgents();
+  return agents.filter((agent) => agent.status === "active").map((agent) => agent.id);
+}
+
+async function runLeadHunterOnResult(result: SearchResult, campaign: LeadCampaign, quality: SearchQuality, enabledAgentIds: string[]) {
   const body = [
+    `Campaign: ${campaign.campaignName}`,
+    `Business line: ${campaign.businessLine}`,
+    `Offer brief: ${campaign.offerBrief || "not specified"}`,
+    `Target segments: ${campaign.targetSegments || "not specified"}`,
+    `Geography: ${campaign.geography || "not specified"}`,
     `Public web lead signal from search query: ${result.query}`,
     `Title: ${result.title}`,
     `URL: ${result.url}`,
-    `Snippet: ${result.snippet}`
+    `Snippet: ${result.snippet}`,
+    `Search quality: ${quality.relevanceScore} (${quality.confidence}) - ${quality.reason}`
   ].join("\n");
 
   const message: InboxMessage = await repository.createMessage({
@@ -86,7 +240,7 @@ async function runLeadHunterOnResult(result: SearchResult) {
     senderName: result.title.slice(0, 80) || "Public Web Signal",
     senderRole: "unknown",
     body,
-    urgency: "medium",
+    urgency: quality.relevanceScore === "A" ? "high" : "medium",
     status: "new",
     classification: "Lead Signal",
     riskLevel: "medium",
@@ -105,12 +259,27 @@ async function runLeadHunterOnResult(result: SearchResult) {
     caseProfile: "lead-hunter",
     caseStatus: "open",
     participants: [],
-    metadata: { sourceUrl: result.url, searchQuery: result.query, generatedBy: "lead-search-runner-v1" }
+    metadata: {
+      campaign: {
+        ...campaign,
+        sourceUrl: result.url,
+        searchQuery: result.query,
+        activeAgentIds: enabledAgentIds,
+        initialRelevanceScore: quality.relevanceScore,
+        initialConfidence: quality.confidence,
+        initialReason: quality.reason
+      },
+      generatedBy: "lead-search-runner-v2"
+    }
   });
 
   const approvalPayload = {
     ...intelligence.draft,
     draft: typeof intelligence.draft.draft === "string" ? intelligence.draft.draft : intelligence.execution.draftContent,
+    candidateSummary: intelligence.draft.candidateSummary,
+    sourceUrl: result.url,
+    businessLine: campaign.businessLine,
+    searchQuality: quality,
     sourceResult: result,
     intelligence
   };
@@ -134,7 +303,7 @@ async function runLeadHunterOnResult(result: SearchResult) {
     LEAD_HUNTER_AGENT_ID
   );
 
-  return { message, approval, intelligence };
+  return { message, approval, intelligence, quality };
 }
 
 router.get("/status", (_req, res) => {
@@ -143,44 +312,69 @@ router.get("/status", (_req, res) => {
     configured: Boolean(process.env.SERPER_API_KEY),
     mode: "public_web_only",
     autoContact: false,
-    approvalRequired: true
+    approvalRequired: true,
+    supportedBusinessLines: ["yacht_sale", "yacht_charter", "car_rental", "mixed"]
   });
 });
 
 router.post("/run", asyncRoute(async (req, res) => {
+  const campaign = normalizeCampaign(req.body || {});
+  const queries = campaign.searchQueries.length ? campaign.searchQueries : [composeFallbackQuery(campaign)].filter(Boolean);
+
   if (!process.env.SERPER_API_KEY) {
     res.json({
       setupRequired: true,
       provider: "serper",
       envVar: "SERPER_API_KEY",
-      message: "Add SERPER_API_KEY in Render environment variables to enable public web lead search.",
+      message: "Add SERPER_API_KEY in Render backend environment variables to enable public web lead search.",
+      mode: "public_web_only",
+      autoContact: false,
+      approvalRequired: true,
+      campaign,
+      queries,
       created: 0,
       results: []
     });
     return;
   }
 
-  const limit = Math.min(Math.max(Number(req.body.limit) || 5, 1), 20);
-  const perQuery = Math.min(Math.max(Number(req.body.perQuery) || 3, 1), 10);
-  const queries = configuredQueries(typeof req.body.topic === "string" ? req.body.topic : undefined).slice(0, 8);
+  const perQuery = Math.min(Math.max(Number(req.body.perQuery) || 4, 1), 10);
   const rawResults = (await Promise.all(queries.map((query) => serperSearch(query, perQuery)))).flat();
-  const results = dedupe(rawResults).slice(0, limit);
+  const { unique, duplicates } = dedupe(rawResults);
+  const accepted: Array<{ result: SearchResult; quality: SearchQuality }> = [];
+  const filtered: Array<{ result: SearchResult; reason: string; relevanceScore?: RelevanceScore }> = duplicates.map((result) => ({ result, reason: "duplicate URL or result" }));
+
+  for (const result of unique) {
+    const quality = scoreSearchResult(result, campaign);
+    if (quality.accepted) accepted.push({ result, quality });
+    else filtered.push({ result, reason: quality.reason, relevanceScore: quality.relevanceScore });
+  }
+
+  const enabledAgentIds = await activeAgentIds();
+  const selected = accepted.slice(0, campaign.maxResults);
   const created = [];
 
-  for (const result of results) {
-    created.push(await runLeadHunterOnResult(result));
+  for (const item of selected) {
+    created.push(await runLeadHunterOnResult(item.result, campaign, item.quality, enabledAgentIds));
   }
 
   res.json({
     setupRequired: false,
     provider: "serper",
     mode: "public_web_only",
+    autoContact: false,
+    approvalRequired: true,
+    campaign,
     queries,
     found: rawResults.length,
-    processed: results.length,
+    accepted: accepted.length,
+    filtered: filtered.length,
+    processed: selected.length,
     created: created.length,
-    approvals: created.map((item) => ({ id: item.approval.id, title: item.approval.title, riskLevel: item.approval.riskLevel })),
-    results
+    activeAgentIds: enabledAgentIds,
+    approvals: created.map((item) => ({ id: item.approval.id, title: item.approval.title, riskLevel: item.approval.riskLevel, score: item.intelligence.draft.relevanceScore, handoffPending: item.intelligence.draft.handoffPending })),
+    results: selected.map((item) => item.result),
+    filteredResults: filtered.slice(0, 20)
   });
 }));
 

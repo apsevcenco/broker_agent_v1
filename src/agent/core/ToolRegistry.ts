@@ -19,30 +19,34 @@ function safeEntry(
     category,
     description,
     defaultPolicy: {
-      canAutoExecute:   false,
+      canAutoExecute: false,
       requiresApproval: true,
-      allowedRoles:     ["admin"],
+      allowedRoles: ["admin"],
       riskLevel
     }
   };
 }
 
 const REGISTRY: RegistryEntry[] = [
-  safeEntry("crm.createLead",              "CRM",         "Create a new lead record from an incoming enquiry.",                      "low"),
-  safeEntry("crm.updateLead",              "CRM",         "Update qualification data on an existing CRM lead.",                      "low"),
-  safeEntry("task.create",                 "TASK",        "Create a follow-up or qualification task in the task queue.",             "low"),
-  safeEntry("calendar.proposeMeeting",     "CALENDAR",    "Propose a meeting slot to a contact. Draft only — never sent without approval.", "low"),
-  safeEntry("email.prepareDraft",          "EMAIL",       "Prepare an email draft for admin review before send.",                    "medium"),
-  safeEntry("document.requestNda",         "DOCUMENT",    "Prepare and route an NDA request. Legal document — requires admin approval before contact.", "high"),
-  safeEntry("knowledge.proposeEntry",      "KNOWLEDGE",   "Propose a new knowledge base entry from conversation content.",           "low"),
-  safeEntry("memory.proposeUpdate",        "MEMORY",      "Propose an update to the relationship memory for a contact.",             "low"),
-  safeEntry("search.webResearch",          "SEARCH",      "Conduct public web research on a contact, company, or vessel.",           "medium"),
-  safeEntry("social.searchLead",           "SOCIAL",      "Search public social profiles for lead qualification signals. No scraping, no contact.", "medium"),
-  safeEntry("translation.translateDocument","TRANSLATION", "Translate a message or document. No external transmission.",             "low"),
-  safeEntry("media.generateAsset",         "MEDIA",       "Generate a media asset (listing image, teaser doc) for admin review. Not published without approval.", "medium"),
+  safeEntry("crm.createLead", "CRM", "Create a new lead record from an incoming enquiry.", "low"),
+  safeEntry("crm.updateLead", "CRM", "Update qualification data on an existing CRM lead.", "low"),
+  safeEntry("task.create", "TASK", "Create a follow-up or qualification task in the task queue.", "low"),
+  safeEntry("calendar.proposeMeeting", "CALENDAR", "Propose a meeting slot to a contact. Draft only - never sent without approval.", "low"),
+  safeEntry("email.prepareDraft", "EMAIL", "Prepare an email draft for admin review before send.", "medium"),
+  safeEntry("outreach.prepareDraft", "EMAIL", "Prepare outreach copy for admin review. Never sent automatically.", "medium"),
+  safeEntry("task.reviewLeadCandidate", "TASK", "Create a manual review task for a public lead candidate.", "low"),
+  safeEntry("case.createOrAttach", "INTERNAL", "Create or attach a Case when supported by Case Runtime. Approval required.", "medium"),
+  safeEntry("prepare.teaserForApproval", "DOCUMENT", "Prepare teaser or campaign materials for approval only. Not shared externally.", "medium"),
+  safeEntry("document.requestNda", "DOCUMENT", "Prepare and route an NDA request. Legal document - requires admin approval before contact.", "high"),
+  safeEntry("knowledge.proposeEntry", "KNOWLEDGE", "Propose a new knowledge base entry from conversation content.", "low"),
+  safeEntry("memory.proposeUpdate", "MEMORY", "Propose an update to the relationship memory for a contact.", "low"),
+  safeEntry("search.webResearch", "SEARCH", "Conduct public web research on a contact, company, or vessel.", "medium"),
+  safeEntry("social.searchLead", "SOCIAL", "Search public social profiles for lead qualification signals. No scraping, no contact.", "medium"),
+  safeEntry("translation.translateDocument", "TRANSLATION", "Translate a message or document. No external transmission.", "low"),
+  safeEntry("media.generateAsset", "MEDIA", "Generate a media asset (listing image, teaser doc) for admin review. Not published without approval.", "medium")
 ];
 
-const REGISTRY_MAP = new Map<string, RegistryEntry>(REGISTRY.map(e => [e.tool, e]));
+const REGISTRY_MAP = new Map<string, RegistryEntry>(REGISTRY.map((entry) => [entry.tool, entry]));
 
 export function lookupTool(tool: string): RegistryEntry | null {
   return REGISTRY_MAP.get(tool) ?? null;
@@ -57,11 +61,11 @@ export function resolvePolicy(tool: string): ToolExecutionPolicy {
   }
   return {
     tool,
-    canAutoExecute:   false,
+    canAutoExecute: false,
     requiresApproval: true,
-    allowedRoles:     ["admin"],
-    riskLevel:        "high",
-    description:      "Unknown tool — treated as INTERNAL. Manual admin approval required."
+    allowedRoles: ["admin"],
+    riskLevel: "high",
+    description: "Unknown tool - treated as INTERNAL. Manual admin approval required."
   };
 }
 

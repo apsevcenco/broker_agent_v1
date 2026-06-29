@@ -2,141 +2,150 @@
 
 ## Purpose
 
-Lead Hunter Agent V1 is the supervised acquisition radar for the Luxury Mobility AI OS. It identifies and qualifies public lead signals across yacht purchase, yacht sale, yacht charter, luxury car rental and VIP mobility.
+Lead Hunter Agent V1 is the supervised acquisition radar for the Luxury Mobility AI OS. It identifies public lead signals, filters weak results, prepares lead candidate summaries, drafts outreach for human review, and proposes approval-only actions.
 
-V1 is not an autonomous outreach bot. It is a research and draft-only agent.
+V1 is not an autonomous outreach bot. It does not send messages, join chats, post ads, scrape restricted sources, or impersonate anyone.
 
-## What V1 Includes
+## Business Lines
 
-- Public-source lead signal analysis from manually added inbox messages or source snippets.
-- Multi-domain classification:
-  - Yacht Purchase
-  - Yacht Sale
-  - Yacht Charter
-  - Luxury Car Rental
-  - Luxury Mobility Lead
-- Routing recommendation to the specialist agent:
-  - Yacht Broker Agent
-  - Charter Agent
-  - Car Rental Agent
-  - Lead Hunter / Client Acquisition
-- Lead score estimation.
-- Risk assessment for outbound acquisition context.
-- Missing qualification item detection.
-- Lead candidate approval payload.
-- Outreach draft preparation.
-- ToolPlan generation for admin approval.
+Lead Hunter V1 supports campaign preparation for:
 
-## What V1 Does Not Include
+- `yacht_sale` - yacht acquisition, seller inquiry, broker cooperation and off-market sale signals.
+- `yacht_charter` - charter demand, concierge, travel advisor and itinerary signals.
+- `car_rental` - luxury car rental, chauffeur, VIP transfer, wedding and event transport signals.
+- `mixed` - broad luxury mobility discovery.
 
-- No autonomous sending.
-- No automatic social messaging.
-- No joining chats or groups.
-- No scraping restricted sources.
-- No bypassing platform limits.
-- No use of bought contact lists.
-- No private profile access.
-- No 24/7 crawling.
-- No scheduled web runner yet.
+## Campaign Inputs
 
-## Operating Mode
+The public web runner accepts:
 
-Initial V1 mode:
+- `campaignName`
+- `businessLine`
+- `offerBrief`
+- `targetSegments`
+- `geography`
+- `maxResults`
+- optional `searchQueries`
+- legacy-compatible `topic`, `limit` and `perQuery`
+
+## Operating Flow
 
 ```text
-Input: manually captured signal / public snippet / source text
-Agent: Lead Hunter Agent
-Execution: CIE profile lead-hunter
-Output: lead candidate + outreach draft + ToolPlan
-Approval: required
-External contact: never automatic
+Campaign input
+  -> public web search result
+  -> Lead Signal inbox message
+  -> Lead Hunter Intelligence
+  -> ToolPlan
+  -> Approval
+  -> optional human-approved handoff
 ```
+
+## Routing Rules
+
+- Yacht sale / acquisition / seller / broker signals route to `yacht-broker-agent`.
+- Yacht charter signals route to `charter-agent` only if that agent is active.
+- Car rental / chauffeur / transfer / wedding transport signals route to `car-rental-agent` only if that agent is active.
+- If a specialist agent exists only as planned, Lead Hunter records honest handoff status:
+  - `charter handoff pending`
+  - `car rental handoff pending`
+- V1 must not invent active agents.
+
+## Candidate Scoring
+
+Each accepted candidate carries:
+
+- `businessLine`
+- `leadCategory`
+- `targetSegment`
+- `routedAgentId` or `handoffPending`
+- `relevanceScore` (`A`, `B`, `C`, `D`)
+- `confidence`
+- `reason`
+- `riskLevel`
+- `sourceUrl`
+- `recommendedNextAction`
+
+Weak candidates are filtered before approval creation. Filtering rejects duplicate URLs, generic directories, SEO/news/blog junk, unrelated articles and results with no useful commercial signal.
 
 ## ToolPlan Behavior
 
 Lead Hunter V1 may propose:
 
-- `search.webResearch` for public web verification.
-- `social.searchLead` for public social-source review only.
-- `crm.createLead` to create a lead candidate.
-- `email.prepareDraft` to prepare outreach copy.
-- `task.create` for human review and assignment.
+- `crm.createLead`
+- `case.createOrAttach`
+- `outreach.prepareDraft`
+- `task.reviewLeadCandidate`
+- `prepare.teaserForApproval` when the offer brief implies teaser, deck, brochure, materials or off-market opportunity preparation
 
-All tool requests require approval. No tool executes automatically in V1.
+All tool requests are `proposed`, `approvalRequired: true`, and never execute automatically in V1.
 
-## Car Rental Support
+## Approval Payload
 
-Luxury car rental signals are supported in V1. The agent looks for signals such as:
+Each lead candidate approval includes:
 
-- luxury car rental
-- supercar rental
-- Rolls-Royce / Bentley / Ferrari / Lamborghini requests
-- chauffeur service
-- airport transfer
-- VIP transport
-- wedding or event car
+- candidate summary
+- source URL
+- business line
+- lead category
+- score and confidence
+- reason
+- draft outreach
+- proposed actions through `intelligence.execution.toolPlan`
+- risk notes
+- full `IntelligenceResponse`
 
-Qualification items include:
+The Operations Center can render the approval with the universal IntelligenceResponse layout while legacy payload fields remain available.
 
-- location
-- dates
-- vehicle class or model
-- self-drive or chauffeur
-- event type
-- passenger profile
-- budget
-- delivery / pickup needs
+## Web Search Runner
 
-## Safety Rules
-
-- Draft only.
-- Human approval before contact.
-- Public-source research only.
-- No impersonation.
-- No spam or mass messaging.
-- No restricted-source scraping.
-- No platform bypassing.
-- No external communication from the system in V1.
-
-
-## Web Search Runner V1
-
-Lead Hunter Web Search V1 is available through:
+Endpoint:
 
 ```text
 POST /api/lead-hunter/search/run
 ```
 
-It uses Serper public web search when this environment variable is configured:
+Provider:
 
 ```text
 SERPER_API_KEY=...
 ```
 
-Optional environment configuration:
+Optional environment query pack:
 
 ```text
 LEAD_HUNTER_QUERIES=one query per line
 ```
 
-If `SERPER_API_KEY` is missing, the endpoint returns `setupRequired: true` and creates no candidates. This prevents hidden failures and avoids uncontrolled scraping.
+If `SERPER_API_KEY` is missing, the endpoint returns `setupRequired: true`, creates no inbox messages and creates no approvals.
 
-The runner:
+## Safety Rules
 
-- searches only public web results returned by the provider
-- deduplicates URLs
-- creates Inbox messages for each processed signal
-- runs Lead Hunter CIE analysis
-- creates pending approval items
-- never contacts prospects automatically
+- Draft only.
+- Human approval before lead creation, case attach or outreach use.
+- Public web results only.
+- No automatic contact.
+- No scraping restricted or paid sources.
+- No platform bypassing.
+- No fake active agents.
+- No fake availability, price, fleet, yacht identity or charter confirmation.
+
+## V1 Verification Expectations
+
+- Missing `SERPER_API_KEY` returns setup guidance and creates nothing.
+- Yacht sale candidates route to Yacht Broker Agent.
+- Charter candidates show `charter handoff pending` unless Charter Agent is active.
+- Car rental candidates show `car rental handoff pending` unless Car Rental Agent is active.
+- All proposed ToolRequests require approval.
+- No outreach is sent.
 
 ## Future Work
 
-- Scheduled search runner.
+- Scheduled search runner after Policy/Event hardening.
 - Source allowlist / denylist.
-- Query pack management.
-- Duplicate detection.
+- Query pack management UI.
+- Duplicate detection across historical cases and approvals.
 - Policy Engine integration.
 - Experience scoring from closed lead outcomes.
+- Charter Agent runtime handoff.
 - Car Rental Agent runtime handoff.
 - Near-real-time monitoring after governance hardening.

@@ -53,7 +53,13 @@ export function AgentDetail({ slug }: { slug: string }) {
   const [profile, setProfile] = useState<AgentKnowledgeProfile | null>(null);
   const [context, setContext] = useState<AgentContext | null>(null);
   const [memoryName, setMemoryName] = useState("");
-  const [searchTopic, setSearchTopic] = useState("");
+  const [campaignName, setCampaignName] = useState("Luxury Mobility Lead Search");
+  const [businessLine, setBusinessLine] = useState<"yacht_sale" | "yacht_charter" | "car_rental" | "mixed">("mixed");
+  const [offerBrief, setOfferBrief] = useState("");
+  const [targetSegments, setTargetSegments] = useState("");
+  const [geography, setGeography] = useState("");
+  const [maxResults, setMaxResults] = useState(8);
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchStatus, setSearchStatus] = useState<string | null>(null);
   const load = () => {
     void api<AgentDefinition>(`/api/agents/${slug}`).then(setAgent);
@@ -75,11 +81,20 @@ export function AgentDetail({ slug }: { slug: string }) {
   async function runLeadSearch() {
     setSearchStatus("Running public web lead search...");
     try {
-      const result = await postJson<{ setupRequired?: boolean; message?: string; created?: number; processed?: number }>("/api/lead-hunter/search/run", { topic: searchTopic, limit: 8, perQuery: 3 });
+      const result = await postJson<{ setupRequired?: boolean; message?: string; created?: number; processed?: number; accepted?: number; filtered?: number }>("/api/lead-hunter/search/run", {
+        campaignName,
+        businessLine,
+        offerBrief,
+        targetSegments,
+        geography,
+        maxResults,
+        perQuery: 4,
+        searchQueries: searchQuery.trim() ? [searchQuery.trim()] : undefined
+      });
       if (result.setupRequired) {
         setSearchStatus(result.message || "Search provider setup is required.");
       } else {
-        setSearchStatus(`Created ${result.created ?? 0} lead candidate approval item(s) from ${result.processed ?? 0} processed result(s).`);
+        setSearchStatus(`Created ${result.created ?? 0} approval item(s). Processed ${result.processed ?? 0}, accepted ${result.accepted ?? 0}, filtered ${result.filtered ?? 0}.`);
         load();
       }
     } catch (error) {
@@ -158,10 +173,23 @@ export function AgentDetail({ slug }: { slug: string }) {
     {isClientAcquisition && <section>
       <h2>Lead Hunter Search</h2>
       <div className="panel">
-        <h3>Public Web Search V1</h3>
-        <p>Runs approved public-web search queries, creates lead candidate approvals, and never contacts prospects automatically.</p>
+        <h3>Controlled Outreach Preparation V1</h3>
+        <p>Searches public web results, filters weak signals, creates lead candidate approvals, and never contacts prospects automatically.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <label>Campaign name<input value={campaignName} onChange={e => setCampaignName(e.target.value)} /></label>
+          <label>Business line<select value={businessLine} onChange={e => setBusinessLine(e.target.value as typeof businessLine)}>
+            <option value="mixed">Mixed luxury mobility</option>
+            <option value="yacht_sale">Yacht sale / acquisition</option>
+            <option value="yacht_charter">Yacht charter</option>
+            <option value="car_rental">Luxury car rental</option>
+          </select></label>
+          <label>Geography<input placeholder="Monaco, Cannes, Dubai" value={geography} onChange={e => setGeography(e.target.value)} /></label>
+          <label>Max results<input type="number" min={1} max={20} value={maxResults} onChange={e => setMaxResults(Number(e.target.value) || 1)} /></label>
+        </div>
+        <label>Offer brief<textarea placeholder="What are we offering? e.g. discreet off-market yacht acquisition support, charter desk, chauffeur fleet..." value={offerBrief} onChange={e => setOfferBrief(e.target.value)} /></label>
+        <label>Target segments<textarea placeholder="Family offices, yacht managers, charter brokers, concierges, hotels, wedding planners..." value={targetSegments} onChange={e => setTargetSegments(e.target.value)} /></label>
         <div className="toolbar">
-          <input placeholder="Optional query, e.g. luxury car rental Monaco chauffeur" value={searchTopic} onChange={e => setSearchTopic(e.target.value)} />
+          <input placeholder="Optional custom query" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           <button onClick={runLeadSearch}>Run Search</button>
         </div>
         {searchStatus && <p className="ops-muted">{searchStatus}</p>}
