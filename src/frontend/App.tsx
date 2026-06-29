@@ -9,6 +9,7 @@ import { Cases } from "./pages/Cases";
 import { CaseDetail } from "./pages/CaseDetail";
 import { LeadHunterResults } from "./pages/LeadHunterResults";
 import { LeadHunterWorkspace } from "./pages/LeadHunterWorkspace";
+import { BusinessFlowCanvas } from "./pages/BusinessFlowCanvas";
 import { Documents, Experience, Goals } from "./pages/Placeholders";
 
 const routes: Record<string, () => ReactNode> = {
@@ -46,6 +47,9 @@ const routes: Record<string, () => ReactNode> = {
   // Lead Hunter
   "/lead-hunter/results":  LeadHunterResults,
   "/lead-hunter-results":  LeadHunterWorkspace,
+
+  // Operations
+  "/business-flow": BusinessFlowCanvas,
 
   // Platform
   "/activity":            ActivityLog,
