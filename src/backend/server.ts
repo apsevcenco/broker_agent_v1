@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import apiRouter from "./routes/api";
 import knowledgeEngineRouter from "./routes/knowledgeEngine";
 import leadHunterSearchRouter from "./routes/leadHunterSearch";
+import leadHunterSourcesRouter from "./routes/leadHunterSources";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use("/api", apiRouter);
 app.use("/api/knowledge-engine", knowledgeEngineRouter);
 app.use("/api/lead-hunter/search", leadHunterSearchRouter);
+app.use("/api/lead-hunter/sources", leadHunterSourcesRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true, service: "Luxury Mobility AI OS" }));
 

@@ -30,6 +30,25 @@ type AgentContext = {
   approvals: ApprovalItem[];
   safety: { draftOnly: boolean; requiresApproval: string[] };
 };
+type LeadSourceStatus = "available" | "not configured" | "coming later";
+
+type LeadSourceConfig = {
+  id: string;
+  name: string;
+  category: string;
+  status: LeadSourceStatus;
+  connectionMode: "API" | "Manual import" | "Public search" | "CSV" | "Future integration";
+  safetyNote: string;
+  requiredSetup: string[];
+  allowedUse: string[];
+  blockedUse: string[];
+  notes: string;
+};
+
+type LeadSourcesResponse = {
+  safetyRules: string[];
+  sources: LeadSourceConfig[];
+};
 
 export function Agents() {
   const [agents, setAgents] = useState<AgentDefinition[]>([]);
@@ -61,11 +80,17 @@ export function AgentDetail({ slug }: { slug: string }) {
   const [maxResults, setMaxResults] = useState(8);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchStatus, setSearchStatus] = useState<string | null>(null);
+  const [leadSources, setLeadSources] = useState<LeadSourcesResponse | null>(null);
+  const [selectedLeadSourceId, setSelectedLeadSourceId] = useState<string | null>(null);
   const load = () => {
     void api<AgentDefinition>(`/api/agents/${slug}`).then(setAgent);
     void api<AgentWorkspace>(`/api/agents/${slug}/workspace`).then(setWorkspace);
     void api<{ profile: AgentKnowledgeProfile | null }>(`/api/agents/${slug}/profile`).then(data => setProfile(data.profile));
     void api<AgentContext>(`/api/agents/${slug}/context`).then(setContext);
+    void api<LeadSourcesResponse>("/api/lead-hunter/sources").then(data => {
+      setLeadSources(data);
+      setSelectedLeadSourceId(current => current || data.sources[0]?.id || null);
+    });
   };
   useEffect(load, [slug]);
   if (!agent) return null;
@@ -78,6 +103,9 @@ export function AgentDetail({ slug }: { slug: string }) {
     setMemoryName("");
     load();
   }
+  const selectedLeadSource = leadSources?.sources.find(source => source.id === selectedLeadSourceId) || null;
+  const sourceStatusTone = (status: LeadSourceStatus) => status === "available" ? "green" : status === "not configured" ? "gold" : "blue";
+
   async function runLeadSearch() {
     setSearchStatus("Running public web lead search...");
     try {
@@ -139,7 +167,7 @@ export function AgentDetail({ slug }: { slug: string }) {
               i < arr.length - 1
                 ? [
                     <span key={step} style={{ background: "#071421", color: "#d5b56f", fontWeight: 700, padding: "6px 14px", borderRadius: 6, fontSize: 13, whiteSpace: "nowrap" }}>{step}</span>,
-                    <span key={`${step}-arrow`} style={{ color: "#b8924b", fontWeight: 900, fontSize: 18, lineHeight: 1 }}>→</span>
+                    <span key={`${step}-arrow`} style={{ color: "#b8924b", fontWeight: 900, fontSize: 18, lineHeight: 1 }}>â†’</span>
                   ]
                 : [<span key={step} style={{ background: "#071421", color: "#d5b56f", fontWeight: 700, padding: "6px 14px", borderRadius: 6, fontSize: 13, whiteSpace: "nowrap" }}>{step}</span>]
             )}
@@ -170,32 +198,72 @@ export function AgentDetail({ slug }: { slug: string }) {
       <section><h2>Yacht Broker Agent</h2><p>This is the first active module. It owns yacht-specific brokerage logic while using shared inbox, CRM, memory, tasks, approvals, assets and knowledge.</p></section>
     </>}
     {isCarRental && <section><h2>Planned Module</h2><p>Future architecture covers fleet database, vehicle profiles, daily/weekly/monthly prices, deposits, insurance, included kilometers, chauffeur pricing, airport transfers, weddings, delivery/pickup, availability, rental contract drafts and client qualification.</p></section>}
-    {isClientAcquisition && <section>
-      <h2>Lead Hunter Search</h2>
-      <div className="panel">
-        <h3>Controlled Outreach Preparation V1</h3>
-        <p>Searches public web results, filters weak signals, creates lead candidate approvals, and never contacts prospects automatically.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <label>Campaign name<input value={campaignName} onChange={e => setCampaignName(e.target.value)} /></label>
-          <label>Business line<select value={businessLine} onChange={e => setBusinessLine(e.target.value as typeof businessLine)}>
-            <option value="mixed">Mixed luxury mobility</option>
-            <option value="yacht_sale">Yacht sale / acquisition</option>
-            <option value="yacht_charter">Yacht charter</option>
-            <option value="car_rental">Luxury car rental</option>
-          </select></label>
-          <label>Geography<input placeholder="Monaco, Cannes, Dubai" value={geography} onChange={e => setGeography(e.target.value)} /></label>
-          <label>Max results<input type="number" min={1} max={20} value={maxResults} onChange={e => setMaxResults(Number(e.target.value) || 1)} /></label>
+    {isClientAcquisition && <>
+      <section>
+        <h2>Lead Sources</h2>
+        <div className="panel">
+          <h3>Source configuration</h3>
+          <p>Source registry for future Lead Hunter channels. V1 only displays status and setup guidance; it does not connect accounts, scrape pages, send messages or store secrets.</p>
+          {leadSources ? <>
+            <div className="meta" style={{ marginBottom: 14 }}>
+              {leadSources.safetyRules.map(rule => <Badge key={rule} tone="red">{rule}</Badge>)}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
+              {leadSources.sources.map(source => <article className="row" key={source.id} style={{ alignItems: "flex-start", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <strong>{source.name}</strong>
+                  <div className="meta" style={{ marginTop: 8 }}>
+                    <Badge>{source.category}</Badge>
+                    <Badge tone={sourceStatusTone(source.status)}>{source.status}</Badge>
+                    <Badge tone="blue">{source.connectionMode}</Badge>
+                  </div>
+                  <p style={{ marginBottom: 0 }}>{source.safetyNote}</p>
+                </div>
+                <button onClick={() => setSelectedLeadSourceId(source.id)}>Configure</button>
+              </article>)}
+            </div>
+            {selectedLeadSource && <div className="panel" style={{ marginTop: 16 }}>
+              <div className="toolbar" style={{ justifyContent: "space-between" }}>
+                <h3 style={{ margin: 0 }}>{selectedLeadSource.name}</h3>
+                <div className="meta"><Badge tone={sourceStatusTone(selectedLeadSource.status)}>{selectedLeadSource.status}</Badge><Badge>{selectedLeadSource.connectionMode}</Badge></div>
+              </div>
+              <p>{selectedLeadSource.notes}</p>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                <div><h4>Required setup</h4><ul>{selectedLeadSource.requiredSetup.map(item => <li key={item}>{item}</li>)}</ul></div>
+                <div><h4>Allowed use</h4><ul>{selectedLeadSource.allowedUse.map(item => <li key={item}>{item}</li>)}</ul></div>
+                <div><h4>Blocked use</h4><ul>{selectedLeadSource.blockedUse.map(item => <li key={item}>{item}</li>)}</ul></div>
+              </div>
+            </div>}
+          </> : <Empty text="Loading lead sources." />}
         </div>
-        <label>Offer brief<textarea placeholder="What are we offering? e.g. discreet off-market yacht acquisition support, charter desk, chauffeur fleet..." value={offerBrief} onChange={e => setOfferBrief(e.target.value)} /></label>
-        <label>Target segments<textarea placeholder="Family offices, yacht managers, charter brokers, concierges, hotels, wedding planners..." value={targetSegments} onChange={e => setTargetSegments(e.target.value)} /></label>
-        <div className="toolbar">
-          <input placeholder="Optional custom query" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-          <button onClick={runLeadSearch}>Run Search</button>
+      </section>
+      <section>
+        <h2>Lead Hunter Search</h2>
+        <div className="panel">
+          <h3>Controlled Outreach Preparation V1</h3>
+          <p>Searches public web results, filters weak signals, creates lead candidate approvals, and never contacts prospects automatically.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+            <label>Campaign name<input value={campaignName} onChange={e => setCampaignName(e.target.value)} /></label>
+            <label>Business line<select value={businessLine} onChange={e => setBusinessLine(e.target.value as typeof businessLine)}>
+              <option value="mixed">Mixed luxury mobility</option>
+              <option value="yacht_sale">Yacht sale / acquisition</option>
+              <option value="yacht_charter">Yacht charter</option>
+              <option value="car_rental">Luxury car rental</option>
+            </select></label>
+            <label>Geography<input placeholder="Monaco, Cannes, Dubai" value={geography} onChange={e => setGeography(e.target.value)} /></label>
+            <label>Max results<input type="number" min={1} max={20} value={maxResults} onChange={e => setMaxResults(Number(e.target.value) || 1)} /></label>
+          </div>
+          <label>Offer brief<textarea placeholder="What are we offering? e.g. discreet off-market yacht acquisition support, charter desk, chauffeur fleet..." value={offerBrief} onChange={e => setOfferBrief(e.target.value)} /></label>
+          <label>Target segments<textarea placeholder="Family offices, yacht managers, charter brokers, concierges, hotels, wedding planners..." value={targetSegments} onChange={e => setTargetSegments(e.target.value)} /></label>
+          <div className="toolbar">
+            <input placeholder="Optional custom query" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            <button onClick={runLeadSearch}>Run Search</button>
+          </div>
+          {searchStatus && <p className="ops-muted">{searchStatus}</p>}
         </div>
-        {searchStatus && <p className="ops-muted">{searchStatus}</p>}
-      </div>
-      <h2>Safe Outreach Module</h2>
-      <p>This active agent researches public prospects, prepares compliant outreach drafts, suggests target segments and creates follow-up tasks. In V1 it must not send messages, join chats, post ads, scrape platforms, bypass limits or impersonate people without explicit human-controlled integrations and approval.</p>
-    </section>}
+        <h2>Safe Outreach Module</h2>
+        <p>This active agent researches public prospects, prepares compliant outreach drafts, suggests target segments and creates follow-up tasks. In V1 it must not send messages, join chats, post ads, scrape platforms, bypass limits or impersonate people without explicit human-controlled integrations and approval.</p>
+      </section>
+    </>}
   </>;
 }
