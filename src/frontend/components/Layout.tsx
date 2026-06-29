@@ -1,7 +1,12 @@
-import { Activity, Bot, Boxes, BookOpen, Brain, CheckSquare, FileText, FolderOpen, Gauge, GitBranch, Inbox, Lightbulb, ListTodo, Search, Settings, Target, Users } from "lucide-react";
+import {
+  Activity, Anchor, BookOpen, Brain, Car, CheckSquare,
+  Cpu, FolderOpen, Gauge, GitBranch, Inbox, ListTodo,
+  Megaphone, MessageCircle, Plug, Search, Settings,
+  TrendingUp, Users, Wind
+} from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
-type NavItem = { href: string; label: string; Icon: ComponentType<{ size?: number }>; soon?: boolean };
+type NavItem = { href: string; label: string; Icon: ComponentType<{ size?: number }>; note?: string };
 type NavGroup = { group?: string; items: NavItem[] };
 
 const groups: NavGroup[] = [
@@ -13,42 +18,43 @@ const groups: NavGroup[] = [
   {
     group: "Business",
     items: [
-      { href: "/goals",  label: "Goals",  Icon: Target,     soon: true },
-      { href: "/cases",  label: "Cases",  Icon: FolderOpen },
-      { href: "/leads",  label: "CRM",    Icon: Users }
+      { href: "/sales",      label: "Sales",      Icon: TrendingUp },
+      { href: "/charter",    label: "Charter",    Icon: Wind },
+      { href: "/car-rental", label: "Car Rental", Icon: Car },
+      { href: "/cases",      label: "Cases",      Icon: FolderOpen },
+      { href: "/leads",      label: "CRM",        Icon: Users }
     ]
   },
   {
     group: "Operations",
     items: [
-      { href: "/inbox",                  label: "Inbox",                Icon: Inbox },
-      { href: "/approvals",              label: "AI Operations Center", Icon: CheckSquare },
-      { href: "/tasks",                  label: "Tasks",                Icon: ListTodo },
-      { href: "/lead-hunter-results",     label: "Lead Hunter Results",  Icon: Search },
-      { href: "/business-flow",           label: "Business Flow Canvas", Icon: GitBranch }
+      { href: "/lead-hunter-results", label: "Lead Hunter Results",  Icon: Search },
+      { href: "/inbox",               label: "Inbox",                Icon: Inbox },
+      { href: "/approvals",           label: "Approvals",            Icon: CheckSquare },
+      { href: "/tasks",               label: "Tasks",                Icon: ListTodo },
+      { href: "/business-flow",       label: "Business Flow Canvas", Icon: GitBranch }
     ]
   },
   {
-    group: "Intelligence",
+    group: "AI Workforce",
     items: [
-      { href: "/agents",     label: "AI Workforce", Icon: Bot },
-      { href: "/knowledge",  label: "Knowledge",    Icon: BookOpen },
-      { href: "/memory",     label: "Memory",       Icon: Brain },
-      { href: "/experience", label: "Experience",   Icon: Lightbulb, soon: true }
-    ]
-  },
-  {
-    group: "Resources",
-    items: [
-      { href: "/assets",    label: "Assets",    Icon: Boxes },
-      { href: "/documents", label: "Documents", Icon: FileText, soon: true }
+      { href: "/agents/client-acquisition", label: "Lead Hunter",      Icon: Search },
+      { href: "/agents/yacht-broker",       label: "Yacht Broker",     Icon: Anchor },
+      { href: "/agents/charter",            label: "Charter Agent",    Icon: Wind,          note: "not implemented" },
+      { href: "/agents/car-rental",         label: "Car Rental Agent", Icon: Car,           note: "not implemented" },
+      { href: "/agents/marketing",          label: "Marketing Agent",  Icon: Megaphone,     note: "not implemented" },
+      { href: "/agents/yachtworth-support", label: "Support Agent",    Icon: MessageCircle, note: "not implemented" }
     ]
   },
   {
     group: "Platform",
     items: [
-      { href: "/activity", label: "Analytics", Icon: Activity },
-      { href: "/settings", label: "Settings",  Icon: Settings }
+      { href: "/knowledge",           label: "Knowledge",    Icon: BookOpen },
+      { href: "/memory",              label: "Memory",       Icon: Brain },
+      { href: "/connections",         label: "Connections",  Icon: Plug },
+      { href: "/settings/ai-providers", label: "AI Providers", Icon: Cpu },
+      { href: "/activity",            label: "Analytics",    Icon: Activity },
+      { href: "/settings",            label: "Settings",     Icon: Settings }
     ]
   }
 ];
@@ -66,11 +72,11 @@ export function Layout({ route, children }: { route: string; children: ReactNode
             const header = group.group
               ? [<div key={`h${gi}`} className="nav-section">{group.group}</div>]
               : [];
-            const links = group.items.map(({ href, label, Icon, soon }) => {
+            const links = group.items.map(({ href, label, Icon, note }) => {
               const isActive = route === href || route.startsWith(`${href}/`);
-              const cls = [isActive ? "active" : "", soon ? "soon" : ""].filter(Boolean).join(" ");
+              const cls = [isActive ? "active" : "", note ? "nav-dimmed" : ""].filter(Boolean).join(" ");
               return (
-                <a key={href} href={href} className={cls || undefined}>
+                <a key={href} href={href} className={cls || undefined} title={note ? "Not yet implemented" : undefined}>
                   <Icon size={16} />
                   {label}
                 </a>

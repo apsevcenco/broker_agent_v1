@@ -10,7 +10,7 @@ import { CaseDetail } from "./pages/CaseDetail";
 import { LeadHunterResults } from "./pages/LeadHunterResults";
 import { LeadHunterWorkspace } from "./pages/LeadHunterWorkspace";
 import { BusinessFlowCanvas } from "./pages/BusinessFlowCanvas";
-import { Documents, Experience, Goals } from "./pages/Placeholders";
+import { CarRentalPage, CharterPage, ConnectionsPage, Documents, Experience, Goals, SalesPage } from "./pages/Placeholders";
 
 const routes: Record<string, () => ReactNode> = {
   // Top-level
@@ -18,9 +18,12 @@ const routes: Record<string, () => ReactNode> = {
   "/dashboard": MissionControl,
 
   // Business
-  "/goals":  Goals,
-  "/cases":  Cases,
-  "/leads":  Leads,
+  "/goals":      Goals,
+  "/sales":      SalesPage,
+  "/charter":    CharterPage,
+  "/car-rental": CarRentalPage,
+  "/cases":      Cases,
+  "/leads":      Leads,
 
   // Operations
   "/inbox":     Inbox,
@@ -52,8 +55,9 @@ const routes: Record<string, () => ReactNode> = {
   "/business-flow": BusinessFlowCanvas,
 
   // Platform
-  "/activity":            ActivityLog,
-  "/settings":            Settings,
+  "/connections":           ConnectionsPage,
+  "/activity":              ActivityLog,
+  "/settings":              Settings,
   "/settings/ai-providers": AiProviders,
 };
 
