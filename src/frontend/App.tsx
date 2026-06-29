@@ -7,6 +7,7 @@ import { ActivityLog, AiProviders, Approvals, Assets, Knowledge, Leads, Memory, 
 import { KnowledgeEngine } from "./pages/KnowledgeEngine";
 import { Cases } from "./pages/Cases";
 import { CaseDetail } from "./pages/CaseDetail";
+import { LeadHunterResults } from "./pages/LeadHunterResults";
 import { Documents, Experience, Goals } from "./pages/Placeholders";
 
 const routes: Record<string, () => ReactNode> = {
@@ -40,6 +41,9 @@ const routes: Record<string, () => ReactNode> = {
   // Resources
   "/assets":    Assets,
   "/documents": Documents,
+
+  // Lead Hunter
+  "/lead-hunter/results": LeadHunterResults,
 
   // Platform
   "/activity":            ActivityLog,

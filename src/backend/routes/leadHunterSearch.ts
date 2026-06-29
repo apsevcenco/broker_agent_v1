@@ -306,10 +306,84 @@ async function runLeadHunterOnResult(result: SearchResult, campaign: LeadCampaig
   return { message, approval, intelligence, quality };
 }
 
+router.get("/results", asyncRoute(async (_req, res) => {
+  const allApprovals = await repository.listApprovals();
+  const candidates = allApprovals.filter(a => a.agentId === LEAD_HUNTER_AGENT_ID && a.type === "lead candidate");
+
+  const results = candidates.map(approval => {
+    let payload: Record<string, any> = {};
+    try { payload = JSON.parse(approval.payload); } catch { /* skip */ }
+
+    const intel     = payload.intelligence || {};
+    const draft     = intel.draft || {};
+    const reasoning = intel.reasoning || {};
+    const decision  = intel.decision  || {};
+    const sourceResult   = payload.sourceResult   || {};
+    const searchQuality  = payload.searchQuality  || {};
+
+    return {
+      id:             approval.id,
+      approvalId:     approval.id,
+      approvalStatus: approval.status,
+      riskLevel:      approval.riskLevel,
+      createdAt:      approval.createdAt,
+
+      companyOrPerson:    sourceResult.title || approval.title?.replace(/^Lead candidate from web:\s*/i, "") || "Unknown",
+      businessLine:       payload.businessLine || draft.businessLine || "mixed",
+      leadCategory:       payload.leadCategory || draft.leadCategory || "",
+      targetSegment:      payload.targetSegment || draft.targetSegment || "",
+      leadScore:          payload.relevanceScore || draft.relevanceScore || reasoning.leadScore || "",
+      confidence:         payload.confidence    ?? draft.confidence    ?? searchQuality.confidence ?? null,
+
+      sourceUrl:          payload.sourceUrl     || draft.sourceUrl     || sourceResult.url || "",
+      searchQuery:        sourceResult.query    || "",
+      snippet:            sourceResult.snippet  || "",
+      searchQualityReason: searchQuality.reason || draft.reason || "",
+
+      recommendation:     decision.recommendation || "",
+      rationale:          decision.rationale      || "",
+
+      candidateSummary:      payload.candidateSummary      || draft.candidateSummary || "",
+      recommendedNextAction: draft.recommendedNextAction   || "",
+      missingItems:          (payload.missingQualificationItems || reasoning.missingQualificationItems || draft.missingQualificationItems || []) as string[],
+      draft:                 typeof payload.draft === "string" ? payload.draft : (typeof intel.execution?.draftContent === "string" ? intel.execution.draftContent : ""),
+      handoffPending:        draft.handoffPending  || null,
+      routedAgentId:         draft.routedAgentId   || null,
+      leadScoreReason:       reasoning.leadScoreReason || "",
+      riskReason:            reasoning.riskReason      || "",
+
+      toolPlan: intel.execution?.toolPlan || null,
+
+      caseId:     null,
+      caseStatus: null
+    };
+  });
+
+  res.json(results);
+}));
+
 router.get("/status", (_req, res) => {
+  const key = process.env.SERPER_API_KEY ?? "";
+  const configured = key.length > 0;
+  const keyDiag = configured
+    ? {
+        exists: true,
+        length: key.length,
+        first4: key.slice(0, 4),
+        last4: key.slice(-4),
+        hasLeadingSpace: key !== key.trimStart(),
+        hasTrailingSpace: key !== key.trimEnd()
+      }
+    : { exists: false, length: 0, first4: null, last4: null, hasLeadingSpace: false, hasTrailingSpace: false };
+
   res.json({
     provider: "serper",
-    configured: Boolean(process.env.SERPER_API_KEY),
+    configured,
+    endpoint: "https://google.serper.dev/search",
+    method: "POST",
+    authHeader: "X-API-KEY",
+    contentType: "application/json",
+    keyDiagnostics: keyDiag,
     mode: "public_web_only",
     autoContact: false,
     approvalRequired: true,

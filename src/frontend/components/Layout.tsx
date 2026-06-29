@@ -1,4 +1,4 @@
-import { Activity, Bot, Boxes, BookOpen, Brain, CheckSquare, FileText, FolderOpen, Gauge, Inbox, Lightbulb, ListTodo, Settings, Target, Users } from "lucide-react";
+import { Activity, Bot, Boxes, BookOpen, Brain, CheckSquare, FileText, FolderOpen, Gauge, Inbox, Lightbulb, ListTodo, Search, Settings, Target, Users } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
 
 type NavItem = { href: string; label: string; Icon: ComponentType<{ size?: number }>; soon?: boolean };
@@ -21,9 +21,10 @@ const groups: NavGroup[] = [
   {
     group: "Operations",
     items: [
-      { href: "/inbox",     label: "Inbox",                Icon: Inbox },
-      { href: "/approvals", label: "AI Operations Center", Icon: CheckSquare },
-      { href: "/tasks",     label: "Tasks",                Icon: ListTodo }
+      { href: "/inbox",                  label: "Inbox",                Icon: Inbox },
+      { href: "/approvals",              label: "AI Operations Center", Icon: CheckSquare },
+      { href: "/tasks",                  label: "Tasks",                Icon: ListTodo },
+      { href: "/lead-hunter/results",    label: "Lead Hunter Results",  Icon: Search }
     ]
   },
   {
