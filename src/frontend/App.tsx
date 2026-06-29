@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Layout } from "./components/Layout";
-import { Dashboard } from "./pages/Dashboard";
+import { MissionControl } from "./pages/MissionControl";
 import { Inbox } from "./pages/Inbox";
 import { AgentDetail, Agents } from "./pages/Agents";
 import { ActivityLog, AiProviders, Approvals, Assets, Knowledge, Leads, Memory, Settings, Tasks } from "./pages/ListPages";
@@ -8,12 +8,13 @@ import { KnowledgeEngine } from "./pages/KnowledgeEngine";
 import { Cases } from "./pages/Cases";
 import { CaseDetail } from "./pages/CaseDetail";
 import { LeadHunterResults } from "./pages/LeadHunterResults";
+import { LeadHunterWorkspace } from "./pages/LeadHunterWorkspace";
 import { Documents, Experience, Goals } from "./pages/Placeholders";
 
 const routes: Record<string, () => ReactNode> = {
   // Top-level
-  "/":          Dashboard,
-  "/dashboard": Dashboard,
+  "/":          MissionControl,
+  "/dashboard": MissionControl,
 
   // Business
   "/goals":  Goals,
@@ -43,7 +44,8 @@ const routes: Record<string, () => ReactNode> = {
   "/documents": Documents,
 
   // Lead Hunter
-  "/lead-hunter/results": LeadHunterResults,
+  "/lead-hunter/results":  LeadHunterResults,
+  "/lead-hunter-results":  LeadHunterWorkspace,
 
   // Platform
   "/activity":            ActivityLog,
@@ -60,6 +62,6 @@ export function App() {
     return <Layout route="/cases"><CaseDetail id={caseId} /></Layout>;
   }
 
-  const Page = routes[path] || Dashboard;
+  const Page = routes[path] || MissionControl;
   return <Layout route={path === "/" ? "/dashboard" : path}><Page /></Layout>;
 }

@@ -7,7 +7,7 @@ type NavGroup = { group?: string; items: NavItem[] };
 const groups: NavGroup[] = [
   {
     items: [
-      { href: "/dashboard", label: "Dashboard", Icon: Gauge }
+      { href: "/dashboard", label: "Mission Control", Icon: Gauge }
     ]
   },
   {
@@ -24,7 +24,7 @@ const groups: NavGroup[] = [
       { href: "/inbox",                  label: "Inbox",                Icon: Inbox },
       { href: "/approvals",              label: "AI Operations Center", Icon: CheckSquare },
       { href: "/tasks",                  label: "Tasks",                Icon: ListTodo },
-      { href: "/lead-hunter/results",    label: "Lead Hunter Results",  Icon: Search }
+      { href: "/lead-hunter-results",     label: "Lead Hunter Results",  Icon: Search }
     ]
   },
   {
