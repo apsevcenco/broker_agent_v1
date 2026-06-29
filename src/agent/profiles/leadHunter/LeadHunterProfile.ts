@@ -7,10 +7,12 @@ import { buildToolPlan } from "../../core/ToolPlan";
 import { resolvePolicy } from "../../core/ToolRegistry";
 
 type BusinessLine = "yacht_sale" | "yacht_charter" | "car_rental" | "mixed";
+type SearchMode = "company_discovery" | "demand_discovery" | "partner_discovery" | "market_intelligence";
 
 type LeadHunterCampaign = {
   campaignName?: string;
   businessLine?: BusinessLine;
+  searchMode?: SearchMode;
   offerBrief?: string;
   targetSegments?: string;
   geography?: string;
@@ -35,6 +37,9 @@ const LINE_TERMS: Record<BusinessLine, string[]> = {
 
 const HIGH_RISK_TERMS = ["scrape", "dm everyone", "mass message", "bypass", "private profile", "login", "password", "paid database", "personal phone", "contact list"];
 const JUNK_TERMS = ["directory", "yellow pages", "seo", "top 10", "blog", "news", "magazine", "wikipedia", "job", "career"];
+
+const DEMAND_SIGNALS_P = ["looking for", "need", "wanted", "seeking", "looking to", "recherche", "besoin", "cerco", "suche", "ищу", "busco"];
+const URGENCY_SIGNALS_P = ["today", "tonight", "tomorrow", "urgent", "asap", "immediately", "this weekend", "aujourd'hui", "demain", "urgente", "heute", "morgen"];
 
 function includesAny(text: string, terms: string[]) {
   return terms.some((term) => text.includes(term));
@@ -150,6 +155,145 @@ function safetyNotes(line: BusinessLine) {
   return "No autonomous outreach, no scraping, no platform bypass, and no unapproved claims.";
 }
 
+function urgencyFor(text: string): "immediate" | "today" | "this_week" | "future" {
+  if (/asap|immediately|urgent|right now|today|tonight/.test(text)) return "immediate";
+  if (/tomorrow|next few days|this weekend/.test(text)) return "today";
+  if (/this week|this month|soon/.test(text)) return "this_week";
+  return "future";
+}
+
+function commercialPriorityFor(urgency: string, demandCount: number): "immediate" | "today" | "this_week" | "future" | "low" {
+  if (urgency === "immediate" && demandCount >= 2) return "immediate";
+  if (urgency === "immediate" || (urgency === "today" && demandCount >= 1)) return "today";
+  if (urgency === "today" || urgency === "this_week") return "this_week";
+  if (demandCount > 0) return "future";
+  return "low";
+}
+
+function operatorRecommendationFor(priority: string): string {
+  const map: Record<string, string> = {
+    immediate: "Contact Immediately",
+    today: "Contact Today",
+    this_week: "Contact Within 24 Hours",
+    future: "Monitor",
+    low: "Ignore"
+  };
+  return map[priority] || "Monitor";
+}
+
+function requestTypeFor(line: BusinessLine, text: string): string {
+  if (line === "car_rental") {
+    if (/airport|transfer|shuttle/.test(text)) return "Airport Transfer";
+    if (/wedding/.test(text)) return "Wedding Transport";
+    if (/crew|staff|team/.test(text)) return "Crew Transfer";
+    if (/event|gala|conference/.test(text)) return "Event Transport";
+    return "Luxury Car Rental";
+  }
+  if (line === "yacht_charter") {
+    if (/corporate|event/.test(text)) return "Corporate Charter";
+    return "Yacht Charter";
+  }
+  if (line === "yacht_sale") {
+    if (/sell|listing/.test(text)) return "Yacht Sale";
+    return "Yacht Purchase";
+  }
+  return "Luxury Mobility Request";
+}
+
+function estimatedRevenueFor(line: BusinessLine, text: string): string {
+  if (line === "car_rental") {
+    if (/fleet|multiple|several|group/.test(text)) return "€2,000–10,000";
+    if (/wedding|event|gala/.test(text)) return "€1,000–5,000";
+    return "€200–2,000";
+  }
+  if (line === "yacht_charter") {
+    if (/superyacht|50m|60m|100ft/.test(text)) return "€100,000–500,000/week";
+    return "€30,000–150,000/week";
+  }
+  if (line === "yacht_sale") {
+    if (/superyacht|50m|60m|100ft/.test(text)) return "€5M–50M+";
+    return "€500K–10M";
+  }
+  return "TBD";
+}
+
+function bookingWindowFor(urgency: string): string {
+  if (urgency === "immediate") return "Same day / 24h";
+  if (urgency === "today") return "1–2 days";
+  if (urgency === "this_week") return "This week";
+  return "TBD / Future";
+}
+
+function closingProbabilityFor(demandCount: number, urgency: string): string {
+  if (urgency === "immediate" && demandCount >= 2) return "High (60–80%)";
+  if (urgency === "immediate" || urgency === "today") return "Medium-High (40–60%)";
+  if (demandCount > 0) return "Medium (20–40%)";
+  return "Low (<20%)";
+}
+
+function repeatPotentialFor(line: BusinessLine): string {
+  if (line === "car_rental") return "High (repeat & fleet bookings)";
+  if (line === "yacht_charter") return "Medium (seasonal repeat)";
+  return "Low (single transaction)";
+}
+
+function scoreDemandCandidate(text: string, line: BusinessLine, camp: LeadHunterCampaign) {
+  let points = 0;
+  const reasons: string[] = [];
+
+  const matchedDemand = DEMAND_SIGNALS_P.filter(s => text.includes(s));
+  points += matchedDemand.length * 18;
+  if (matchedDemand.length) reasons.push(`demand signals: ${matchedDemand.slice(0, 3).join(", ")}`);
+
+  const matchedUrgency = URGENCY_SIGNALS_P.filter(s => text.includes(s));
+  if (matchedUrgency.length) {
+    points += matchedUrgency.length * 22;
+    reasons.push(`urgency: ${matchedUrgency.slice(0, 2).join(", ")}`);
+  }
+
+  const terms = LINE_TERMS[line];
+  const matched = terms.filter(t => text.includes(t)).slice(0, 4);
+  points += matched.length * 10;
+  if (matched.length) reasons.push(`business terms: ${matched.slice(0, 2).join(", ")}`);
+
+  const places = String(camp.geography || "").toLowerCase().split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+  const matchedPlaces = places.filter(p => text.includes(p)).slice(0, 3);
+  points += matchedPlaces.length * 8;
+  if (matchedPlaces.length) reasons.push(`geography: ${matchedPlaces.join(", ")}`);
+
+  if (includesAny(text, JUNK_TERMS)) points -= 18;
+  if (text.length < 120) points -= 8;
+
+  const relevanceScore = points >= 50 ? "A" : points >= 30 ? "B" : points >= 15 ? "C" : "D";
+  const confidence = Math.max(0.25, Math.min(0.92, points / 88));
+  return {
+    relevanceScore,
+    confidence: Number(confidence.toFixed(2)),
+    reason: reasons.length ? reasons.join("; ") : "weak demand signal"
+  };
+}
+
+function buildDemandDraft(params: {
+  line: BusinessLine;
+  label: string;
+  requestType: string;
+  urgency: string;
+  priority: string;
+  operatorRec: string;
+  revenue: string;
+  camp: LeadHunterCampaign;
+}): string {
+  const urgencyLabel: Record<string, string> = { immediate: "Immediate", today: "Today", this_week: "This Week", future: "Future" };
+  return [
+    `Demand request detected: ${params.label} / ${params.requestType}`,
+    `Urgency: ${urgencyLabel[params.urgency] || "TBD"} | Priority: ${params.priority} | Operator action: ${params.operatorRec}`,
+    `Estimated revenue: ${params.revenue}`,
+    `Campaign: ${params.camp.campaignName || "Demand Discovery"}`,
+    ``,
+    `Outreach draft (demand response): Thank you for your request. We specialise in ${params.label.toLowerCase()} and may have immediate availability. Could you confirm the exact date, location, and requirements? We will respond within the hour for urgent requests.`
+  ].join("\n");
+}
+
 function buildDraft(params: {
   line: BusinessLine;
   label: string;
@@ -200,15 +344,29 @@ export const LeadHunterProfile: ReasoningProfile = {
   async execute(context: IntelligenceContext): Promise<IntelligenceResponse> {
     const { message, knowledge, memory } = context;
     const camp = campaign(context);
+    const searchMode = camp.searchMode || "company_discovery";
+    const isDemand = searchMode === "demand_discovery";
     const text = [message.body, camp.offerBrief, camp.targetSegments, camp.geography].join(" ").toLowerCase();
     const line = normalizeLine(camp.businessLine, text);
     const label = BUSINESS_LABEL[line];
     const category = categoryFor(line, text);
     const route = routeFor(line, camp.activeAgentIds || []);
-    const scoring = scoreCandidate(text, line, camp);
+    const scoring = isDemand ? scoreDemandCandidate(text, line, camp) : scoreCandidate(text, line, camp);
     const risk = riskLevel(text);
     const missing = missingItems(line, text);
-    const draft = buildDraft({ line, label, category, score: scoring.relevanceScore, confidence: scoring.confidence, reason: scoring.reason, missing, camp, handoffPending: route.handoffPending });
+
+    const demandMatchCount = isDemand ? DEMAND_SIGNALS_P.filter(s => text.includes(s)).length : 0;
+    const urgency = isDemand ? urgencyFor(text) : "future";
+    const commercialPriority = isDemand ? commercialPriorityFor(urgency, demandMatchCount) : null;
+    const operatorRec = isDemand ? operatorRecommendationFor(commercialPriority ?? "low") : null;
+    const requestType = isDemand ? requestTypeFor(line, text) : null;
+    const estimatedRevenue = isDemand ? estimatedRevenueFor(line, text) : null;
+    const bookingWindow = isDemand ? bookingWindowFor(urgency) : null;
+    const closingProb = isDemand ? closingProbabilityFor(demandMatchCount, urgency) : null;
+
+    const draft = isDemand
+      ? buildDemandDraft({ line, label, requestType: requestType!, urgency, priority: commercialPriority!, operatorRec: operatorRec!, revenue: estimatedRevenue!, camp })
+      : buildDraft({ line, label, category, score: scoring.relevanceScore, confidence: scoring.confidence, reason: scoring.reason, missing, camp, handoffPending: route.handoffPending });
 
     const decision = scoring.relevanceScore === "D"
       ? RecommendedDecision.ARCHIVE
@@ -290,9 +448,9 @@ export const LeadHunterProfile: ReasoningProfile = {
       },
       draft: {
         draft,
-        candidateSummary: `${label} / ${category}`,
+        candidateSummary: isDemand ? `${label} / ${requestType}` : `${label} / ${category}`,
         businessLine: line,
-        leadCategory: category,
+        leadCategory: isDemand ? (requestType ?? category) : category,
         targetSegment: camp.targetSegments,
         routedAgentId: route.routedAgentId,
         handoffPending: route.handoffPending,
@@ -301,9 +459,19 @@ export const LeadHunterProfile: ReasoningProfile = {
         reason: scoring.reason,
         riskLevel: risk,
         sourceUrl: camp.sourceUrl,
-        recommendedNextAction: route.handoffPending ? route.handoffPending : "review and route after approval",
+        recommendedNextAction: operatorRec ?? (route.handoffPending ? route.handoffPending : "review and route after approval"),
         missingQualificationItems: missing,
-        outreachMode: "draft_only"
+        outreachMode: "draft_only",
+        searchMode,
+        demandLevel: isDemand ? (demandMatchCount >= 3 ? "high" : demandMatchCount >= 1 ? "medium" : "low") : null,
+        urgency: isDemand ? urgency : null,
+        commercialPriority: commercialPriority ?? null,
+        estimatedRevenue: estimatedRevenue ?? null,
+        bookingWindow: bookingWindow ?? null,
+        closingProbability: closingProb ?? null,
+        repeatPotential: isDemand ? repeatPotentialFor(line) : null,
+        requestType: requestType ?? null,
+        operatorRecommendation: operatorRec ?? null
       }
     };
   }

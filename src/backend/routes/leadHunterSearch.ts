@@ -12,10 +12,12 @@ const asyncRoute = (handler: (req: Request, res: Response) => Promise<void>) =>
 
 type BusinessLine = "yacht_sale" | "yacht_charter" | "car_rental" | "mixed";
 type RelevanceScore = "A" | "B" | "C" | "D";
+type SearchMode = "company_discovery" | "demand_discovery" | "partner_discovery" | "market_intelligence";
 
 type LeadCampaignRequest = {
   campaignName?: string;
   businessLine?: BusinessLine;
+  searchMode?: SearchMode;
   offerBrief?: string;
   targetSegments?: string;
   geography?: string;
@@ -28,6 +30,7 @@ type LeadCampaignRequest = {
 
 type LeadCampaign = Required<Pick<LeadCampaignRequest, "businessLine">> & {
   campaignName: string;
+  searchMode: SearchMode;
   offerBrief: string;
   targetSegments: string;
   geography: string;
@@ -76,6 +79,85 @@ const DEFAULT_QUERIES_BY_LINE: Record<BusinessLine, string[]> = {
   ]
 };
 
+const DEFAULT_QUERIES_BY_MODE: Record<SearchMode, Record<BusinessLine, string[]>> = {
+  company_discovery: DEFAULT_QUERIES_BY_LINE,
+  demand_discovery: {
+    yacht_sale: [
+      '"looking to buy" "yacht" OR "superyacht"',
+      '"need" "motor yacht" "acquisition" OR "purchase"',
+      '"recherche" "yacht" "achat" OR "acquisition"',
+      '"suche" "Yacht" "kaufen"',
+      '"cerco" "yacht" "acquisto"'
+    ],
+    yacht_charter: [
+      '"looking to charter" "yacht" "Mediterranean"',
+      '"need" "yacht charter" "available"',
+      '"charter" "needed" OR "urgent" OR "asap"',
+      '"recherche" "yacht" "charter" "urgent"',
+      '"cerco" "yacht" "charter" monaco OR cannes',
+      '"need" "sailing" OR "motor yacht" "charter" "week"'
+    ],
+    car_rental: [
+      '"need" "airport transfer" monaco OR nice OR cannes "today" OR "tomorrow"',
+      '"looking for" "chauffeur" "VIP" "urgent" OR "asap"',
+      '"need" "Mercedes V-Class" OR "Renault Trafic" OR "minibus" "airport"',
+      '"recherche" "transfert aéroport" "urgent" monaco OR cannes OR nice',
+      '"crew transfer" "need" OR "looking for" monaco',
+      '"wedding" "luxury car" "need" OR "looking for"',
+      '"need" "Rolls Royce" OR "Bentley" "chauffeur" monaco'
+    ],
+    mixed: [
+      '"looking for" "yacht" OR "charter" OR "transfer" "urgent" OR "today"',
+      '"need" "luxury" "transport" OR "yacht" monaco',
+      '"recherche" "yacht" OR "transfert" "urgent"',
+      '"cerco" "yacht" OR "auto" "urgente"'
+    ]
+  },
+  partner_discovery: {
+    yacht_sale: [
+      '"family office" "yacht" "advisor" OR "broker" monaco OR switzerland',
+      '"wealth manager" "yacht" "client" referral',
+      '"yacht broker" "monaco" OR "antibes" OR "palma" partner'
+    ],
+    yacht_charter: [
+      '"concierge" "yacht charter" partner OR referral',
+      '"luxury hotel" "yacht" "partner" monaco OR cannes',
+      '"travel agency" "yacht charter" mediterranean',
+      '"private aviation" "yacht" "partner" OR "referral"'
+    ],
+    car_rental: [
+      '"hotel" "concierge" "car rental" OR "chauffeur" partner monaco',
+      '"wedding planner" "luxury car" partner monaco OR cannes',
+      '"event company" "VIP transport" monaco'
+    ],
+    mixed: [
+      '"luxury lifestyle" "partner" OR "affiliate" monaco',
+      '"concierge" "yacht" "car" "partner" monaco cannes'
+    ]
+  },
+  market_intelligence: {
+    yacht_sale: [
+      '"superyacht" "new listing" OR "price reduced" 2025',
+      '"yacht" "off-market" "sale" broker',
+      '"yacht builder" "delivery" OR "new build" 2025'
+    ],
+    yacht_charter: [
+      '"yacht charter" "season" "mediterranean" 2025',
+      '"charter" "new addition" OR "newly available" fleet',
+      '"charter demand" "growing" OR "increased" mediterranean'
+    ],
+    car_rental: [
+      '"luxury car rental" "monaco" "new" 2025',
+      '"VIP transfer" "new service" "monaco" OR "cannes"',
+      '"chauffeur" "new fleet" "monaco"'
+    ],
+    mixed: [
+      '"luxury mobility" "market" "monaco" OR "cannes" 2025',
+      '"superyacht" "charter" "car rental" "trend" 2025'
+    ]
+  }
+};
+
 const LINE_TERMS: Record<BusinessLine, string[]> = {
   yacht_sale: ["yacht", "superyacht", "motor yacht", "family office", "acquisition", "broker", "manager", "wealth", "off-market", "seller", "sale"],
   yacht_charter: ["yacht charter", "charter", "concierge", "travel advisor", "itinerary", "mediterranean", "summer", "broker", "family office"],
@@ -85,6 +167,9 @@ const LINE_TERMS: Record<BusinessLine, string[]> = {
 
 const INTENT_TERMS = ["looking for", "need", "request", "enquiry", "client", "principal", "family office", "advisor", "concierge", "broker", "manager", "vip", "private client"];
 const JUNK_TERMS = ["directory", "yellow pages", "top 10", "best 10", "seo", "wikipedia", "jobs", "career", "vacancy", "press release", "magazine", "news", "blog"];
+
+const DEMAND_SIGNALS = ["looking for", "need", "wanted", "seeking", "looking to", "recherche", "besoin", "cherche", "cerco", "urgente", "suche", "dringend", "ищу", "busco"];
+const URGENCY_SIGNALS = ["today", "tonight", "tomorrow", "urgent", "asap", "immediately", "right now", "this weekend", "aujourd'hui", "demain", "urgente", "heute", "morgen", "сегодня", "завтра", "hoy", "mañana"];
 
 function asBusinessLine(value: unknown): BusinessLine {
   return value === "yacht_sale" || value === "yacht_charter" || value === "car_rental" || value === "mixed" ? value : "mixed";
@@ -96,6 +181,8 @@ function splitList(value?: string) {
 
 function normalizeCampaign(body: LeadCampaignRequest): LeadCampaign {
   const businessLine = asBusinessLine(body.businessLine);
+  const VALID_MODES: SearchMode[] = ["company_discovery", "demand_discovery", "partner_discovery", "market_intelligence"];
+  const searchMode: SearchMode = VALID_MODES.includes(body.searchMode as SearchMode) ? body.searchMode as SearchMode : "company_discovery";
   const customQueries = Array.isArray(body.searchQueries)
     ? body.searchQueries.map((item) => String(item).trim()).filter(Boolean)
     : [];
@@ -104,12 +191,13 @@ function normalizeCampaign(body: LeadCampaignRequest): LeadCampaign {
     ?.split("\n")
     .map((item) => item.trim())
     .filter(Boolean) || [];
-  const defaultQueries = DEFAULT_QUERIES_BY_LINE[businessLine];
+  const defaultQueries = DEFAULT_QUERIES_BY_MODE[searchMode][businessLine];
   const searchQueries = (customQueries.length ? customQueries : topic.length ? topic : envQueries.length ? envQueries : defaultQueries).slice(0, 8);
 
   return {
     campaignName: String(body.campaignName || "Lead Hunter Campaign").trim(),
     businessLine,
+    searchMode,
     offerBrief: String(body.offerBrief || "").trim(),
     targetSegments: String(body.targetSegments || "").trim(),
     geography: String(body.geography || "").trim(),
@@ -185,6 +273,44 @@ function scoreSearchResult(result: SearchResult, campaign: LeadCampaign): Search
     relevanceScore,
     confidence,
     reason: reasons.length ? reasons.join("; ") : "weak or generic public web signal"
+  };
+}
+
+function scoreDemandResult(result: SearchResult, campaign: LeadCampaign): SearchQuality {
+  const text = [result.title, result.url, result.snippet, result.query].join(" ").toLowerCase();
+  let points = 0;
+  const reasons: string[] = [];
+
+  const matchedDemand = DEMAND_SIGNALS.filter(s => text.includes(s));
+  points += matchedDemand.length * 18;
+  if (matchedDemand.length) reasons.push(`demand signals: ${matchedDemand.slice(0, 3).join(", ")}`);
+
+  const matchedUrgency = URGENCY_SIGNALS.filter(s => text.includes(s));
+  if (matchedUrgency.length) {
+    points += matchedUrgency.length * 22;
+    reasons.push(`urgency: ${matchedUrgency.slice(0, 2).join(", ")}`);
+  }
+
+  const lineTerms = campaign.businessLine === "mixed"
+    ? [...LINE_TERMS.yacht_sale, ...LINE_TERMS.yacht_charter, ...LINE_TERMS.car_rental]
+    : LINE_TERMS[campaign.businessLine];
+  const matchedLine = lineTerms.filter(term => text.includes(term)).slice(0, 4);
+  points += matchedLine.length * 10;
+  if (matchedLine.length) reasons.push(`business terms: ${matchedLine.slice(0, 2).join(", ")}`);
+
+  if (JUNK_TERMS.some(term => text.includes(term))) {
+    points -= 20;
+    reasons.push("generic/SEO content detected");
+  }
+  if (!result.url || text.length < 80) points -= 15;
+
+  const relevanceScore: RelevanceScore = points >= 50 ? "A" : points >= 30 ? "B" : points >= 15 ? "C" : "D";
+  const confidence = Number(Math.max(0.2, Math.min(0.95, points / 88)).toFixed(2));
+  return {
+    accepted: relevanceScore !== "D",
+    relevanceScore,
+    confidence,
+    reason: reasons.length ? reasons.join("; ") : "weak demand signal"
   };
 }
 
@@ -354,6 +480,17 @@ router.get("/results", asyncRoute(async (_req, res) => {
 
       toolPlan: intel.execution?.toolPlan || null,
 
+      searchMode:             draft.searchMode            || "company_discovery",
+      demandLevel:            draft.demandLevel           || null,
+      urgency:                draft.urgency               || null,
+      commercialPriority:     draft.commercialPriority    || null,
+      estimatedRevenue:       draft.estimatedRevenue      || null,
+      bookingWindow:          draft.bookingWindow         || null,
+      closingProbability:     draft.closingProbability    || null,
+      repeatPotential:        draft.repeatPotential       || null,
+      requestType:            draft.requestType           || null,
+      operatorRecommendation: draft.operatorRecommendation || null,
+
       caseId:     null,
       caseStatus: null
     };
@@ -419,7 +556,9 @@ router.post("/run", asyncRoute(async (req, res) => {
   const filtered: Array<{ result: SearchResult; reason: string; relevanceScore?: RelevanceScore }> = duplicates.map((result) => ({ result, reason: "duplicate URL or result" }));
 
   for (const result of unique) {
-    const quality = scoreSearchResult(result, campaign);
+    const quality = campaign.searchMode === "demand_discovery"
+      ? scoreDemandResult(result, campaign)
+      : scoreSearchResult(result, campaign);
     if (quality.accepted) accepted.push({ result, quality });
     else filtered.push({ result, reason: quality.reason, relevanceScore: quality.relevanceScore });
   }
