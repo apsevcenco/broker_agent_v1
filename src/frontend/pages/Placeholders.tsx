@@ -77,13 +77,3 @@ export function CarRentalPage() {
   );
 }
 
-export function ConnectionsPage() {
-  return (
-    <PlaceholderPage
-      title="Connections"
-      subtitle="External service integrations used by EBOS agents."
-      body="The Connection Center will show every integrated service — search providers, communication channels, CRM systems, and data enrichment tools. Each connection will display its status, the agents that use it, and the approval rules that govern its use."
-      note="Currently active: Serper Web Search (used by Lead Hunter). Planned integrations: Gmail, LinkedIn, WhatsApp Business, Apollo, Clay."
-    />
-  );
-}

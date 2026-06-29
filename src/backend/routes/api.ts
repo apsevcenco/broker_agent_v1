@@ -635,6 +635,11 @@ router.use((error: Error, _req: Request, res: Response, _next: NextFunction) => 
   res.status(500).json({ error: error.message || "Internal server error" });
 });
 
+// Connection status — exposes boolean flags only, no secrets
+router.get("/connections/status", (_req, res) => {
+  res.json({ serper: !!(process.env.SERPER_API_KEY) });
+});
+
 export default router;
 
 

@@ -10,7 +10,8 @@ import { CaseDetail } from "./pages/CaseDetail";
 import { LeadHunterResults } from "./pages/LeadHunterResults";
 import { LeadHunterWorkspace } from "./pages/LeadHunterWorkspace";
 import { BusinessFlowCanvas } from "./pages/BusinessFlowCanvas";
-import { CarRentalPage, CharterPage, ConnectionsPage, Documents, Experience, Goals, SalesPage } from "./pages/Placeholders";
+import { CarRentalPage, CharterPage, Documents, Experience, Goals, SalesPage } from "./pages/Placeholders";
+import { ConnectionsPage } from "./pages/ConnectionsPage";
 
 const routes: Record<string, () => ReactNode> = {
   // Top-level
