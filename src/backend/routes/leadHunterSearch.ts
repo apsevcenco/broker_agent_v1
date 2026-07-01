@@ -1,18 +1,23 @@
-﻿import type { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { Router } from "express";
-import type { InboxMessage } from "../../shared/types";
+import type { AgentTask, ApprovalItem, InboxMessage } from "../../shared/types";
 import { CoreIntelligenceEngine } from "../../agent/core/CoreIntelligenceEngine";
 import { repository } from "../data/repository";
+import { CommercialIntelligenceEngine, DEFAULT_QUERIES_BY_MODE } from "../../platform/cie";
+import type {
+  BusinessLine,
+  CIECandidate,
+  RelevanceScore,
+  SearchMode,
+  SearchQuality,
+  SearchResult
+} from "../../platform/cie";
 
 const router = Router();
 const LEAD_HUNTER_AGENT_ID = "client-acquisition-agent";
 const now = () => new Date().toISOString();
 const asyncRoute = (handler: (req: Request, res: Response) => Promise<void>) =>
   (req: Request, res: Response, next: NextFunction) => handler(req, res).catch(next);
-
-type BusinessLine = "yacht_sale" | "yacht_charter" | "car_rental" | "mixed";
-type RelevanceScore = "A" | "B" | "C" | "D";
-type SearchMode = "company_discovery" | "demand_discovery" | "partner_discovery" | "market_intelligence";
 
 type LeadCampaignRequest = {
   campaignName?: string;
@@ -38,138 +43,6 @@ type LeadCampaign = Required<Pick<LeadCampaignRequest, "businessLine">> & {
   searchQueries: string[];
 };
 
-type SearchResult = {
-  title: string;
-  url: string;
-  snippet: string;
-  query: string;
-};
-
-type SearchQuality = {
-  accepted: boolean;
-  relevanceScore: RelevanceScore;
-  confidence: number;
-  reason: string;
-};
-
-const DEFAULT_QUERIES_BY_LINE: Record<BusinessLine, string[]> = {
-  yacht_sale: [
-    '"family office" "yacht" "acquisition"',
-    '"looking for" "motor yacht" "broker"',
-    '"sell my yacht" "broker"',
-    '"superyacht" "acquisition" "advisor"'
-  ],
-  yacht_charter: [
-    '"looking for" "yacht charter" "Mediterranean"',
-    '"luxury travel advisor" "yacht charter"',
-    '"concierge" "yacht charter" "Monaco"',
-    '"private client" "yacht charter"'
-  ],
-  car_rental: [
-    '"need" "luxury car rental" "Monaco"',
-    '"looking for" "Rolls-Royce" "chauffeur"',
-    '"VIP transfer" "Cannes"',
-    '"wedding" "luxury car rental"'
-  ],
-  mixed: [
-    '"family office" "yacht" "acquisition"',
-    '"looking for" "yacht charter" "Mediterranean"',
-    '"need" "luxury car rental" "Monaco"',
-    '"VIP transport" "Cannes"'
-  ]
-};
-
-const DEFAULT_QUERIES_BY_MODE: Record<SearchMode, Record<BusinessLine, string[]>> = {
-  company_discovery: DEFAULT_QUERIES_BY_LINE,
-  demand_discovery: {
-    yacht_sale: [
-      '"looking to buy" "yacht" OR "superyacht"',
-      '"need" "motor yacht" "acquisition" OR "purchase"',
-      '"recherche" "yacht" "achat" OR "acquisition"',
-      '"suche" "Yacht" "kaufen"',
-      '"cerco" "yacht" "acquisto"'
-    ],
-    yacht_charter: [
-      '"looking to charter" "yacht" "Mediterranean"',
-      '"need" "yacht charter" "available"',
-      '"charter" "needed" OR "urgent" OR "asap"',
-      '"recherche" "yacht" "charter" "urgent"',
-      '"cerco" "yacht" "charter" monaco OR cannes',
-      '"need" "sailing" OR "motor yacht" "charter" "week"'
-    ],
-    car_rental: [
-      '"need" "airport transfer" monaco OR nice OR cannes "today" OR "tomorrow"',
-      '"looking for" "chauffeur" "VIP" "urgent" OR "asap"',
-      '"need" "Mercedes V-Class" OR "Renault Trafic" OR "minibus" "airport"',
-      '"recherche" "transfert aéroport" "urgent" monaco OR cannes OR nice',
-      '"crew transfer" "need" OR "looking for" monaco',
-      '"wedding" "luxury car" "need" OR "looking for"',
-      '"need" "Rolls Royce" OR "Bentley" "chauffeur" monaco'
-    ],
-    mixed: [
-      '"looking for" "yacht" OR "charter" OR "transfer" "urgent" OR "today"',
-      '"need" "luxury" "transport" OR "yacht" monaco',
-      '"recherche" "yacht" OR "transfert" "urgent"',
-      '"cerco" "yacht" OR "auto" "urgente"'
-    ]
-  },
-  partner_discovery: {
-    yacht_sale: [
-      '"family office" "yacht" "advisor" OR "broker" monaco OR switzerland',
-      '"wealth manager" "yacht" "client" referral',
-      '"yacht broker" "monaco" OR "antibes" OR "palma" partner'
-    ],
-    yacht_charter: [
-      '"concierge" "yacht charter" partner OR referral',
-      '"luxury hotel" "yacht" "partner" monaco OR cannes',
-      '"travel agency" "yacht charter" mediterranean',
-      '"private aviation" "yacht" "partner" OR "referral"'
-    ],
-    car_rental: [
-      '"hotel" "concierge" "car rental" OR "chauffeur" partner monaco',
-      '"wedding planner" "luxury car" partner monaco OR cannes',
-      '"event company" "VIP transport" monaco'
-    ],
-    mixed: [
-      '"luxury lifestyle" "partner" OR "affiliate" monaco',
-      '"concierge" "yacht" "car" "partner" monaco cannes'
-    ]
-  },
-  market_intelligence: {
-    yacht_sale: [
-      '"superyacht" "new listing" OR "price reduced" 2025',
-      '"yacht" "off-market" "sale" broker',
-      '"yacht builder" "delivery" OR "new build" 2025'
-    ],
-    yacht_charter: [
-      '"yacht charter" "season" "mediterranean" 2025',
-      '"charter" "new addition" OR "newly available" fleet',
-      '"charter demand" "growing" OR "increased" mediterranean'
-    ],
-    car_rental: [
-      '"luxury car rental" "monaco" "new" 2025',
-      '"VIP transfer" "new service" "monaco" OR "cannes"',
-      '"chauffeur" "new fleet" "monaco"'
-    ],
-    mixed: [
-      '"luxury mobility" "market" "monaco" OR "cannes" 2025',
-      '"superyacht" "charter" "car rental" "trend" 2025'
-    ]
-  }
-};
-
-const LINE_TERMS: Record<BusinessLine, string[]> = {
-  yacht_sale: ["yacht", "superyacht", "motor yacht", "family office", "acquisition", "broker", "manager", "wealth", "off-market", "seller", "sale"],
-  yacht_charter: ["yacht charter", "charter", "concierge", "travel advisor", "itinerary", "mediterranean", "summer", "broker", "family office"],
-  car_rental: ["car rental", "chauffeur", "vip transfer", "airport transfer", "wedding", "event", "rolls", "bentley", "ferrari", "lamborghini", "hotel", "villa", "private aviation"],
-  mixed: ["luxury", "mobility", "concierge", "family office", "vip", "yacht", "charter", "chauffeur", "rental"]
-};
-
-const INTENT_TERMS = ["looking for", "need", "request", "enquiry", "client", "principal", "family office", "advisor", "concierge", "broker", "manager", "vip", "private client"];
-const JUNK_TERMS = ["directory", "yellow pages", "top 10", "best 10", "seo", "wikipedia", "jobs", "career", "vacancy", "press release", "magazine", "news", "blog"];
-
-const DEMAND_SIGNALS = ["looking for", "need", "wanted", "seeking", "looking to", "recherche", "besoin", "cherche", "cerco", "urgente", "suche", "dringend", "ищу", "busco"];
-const URGENCY_SIGNALS = ["today", "tonight", "tomorrow", "urgent", "asap", "immediately", "right now", "this weekend", "aujourd'hui", "demain", "urgente", "heute", "morgen", "сегодня", "завтра", "hoy", "mañana"];
 
 function asBusinessLine(value: unknown): BusinessLine {
   return value === "yacht_sale" || value === "yacht_charter" || value === "car_rental" || value === "mixed" ? value : "mixed";
@@ -216,104 +89,6 @@ function composeFallbackQuery(campaign: LeadCampaign) {
   return parts.join(" ").trim();
 }
 
-function dedupe(results: SearchResult[]) {
-  const seen = new Set<string>();
-  const unique: SearchResult[] = [];
-  const duplicates: SearchResult[] = [];
-  for (const result of results) {
-    const key = (result.url || `${result.title}:${result.snippet}`).toLowerCase();
-    if (seen.has(key)) {
-      duplicates.push(result);
-      continue;
-    }
-    seen.add(key);
-    unique.push(result);
-  }
-  return { unique, duplicates };
-}
-
-function scoreSearchResult(result: SearchResult, campaign: LeadCampaign): SearchQuality {
-  const text = [result.title, result.url, result.snippet, result.query].join(" ").toLowerCase();
-  const lineTerms = campaign.businessLine === "mixed"
-    ? [...LINE_TERMS.yacht_sale, ...LINE_TERMS.yacht_charter, ...LINE_TERMS.car_rental]
-    : LINE_TERMS[campaign.businessLine];
-  const targetTerms = splitList(campaign.targetSegments).map((item) => item.toLowerCase());
-  const geographyTerms = splitList(campaign.geography).map((item) => item.toLowerCase());
-  let points = 0;
-  const reasons: string[] = [];
-
-  const matchedLine = lineTerms.filter((term) => text.includes(term)).slice(0, 5);
-  points += matchedLine.length * 12;
-  if (matchedLine.length) reasons.push(`matched business terms: ${matchedLine.join(", ")}`);
-
-  const matchedTarget = targetTerms.filter((term) => text.includes(term)).slice(0, 4);
-  points += matchedTarget.length * 14;
-  if (matchedTarget.length) reasons.push(`matched target segment: ${matchedTarget.join(", ")}`);
-
-  const matchedGeo = geographyTerms.filter((term) => text.includes(term)).slice(0, 4);
-  points += matchedGeo.length * 10;
-  if (matchedGeo.length) reasons.push(`matched geography: ${matchedGeo.join(", ")}`);
-
-  if (INTENT_TERMS.some((term) => text.includes(term))) {
-    points += 14;
-    reasons.push("contains commercial intent or role signal");
-  }
-
-  if (JUNK_TERMS.some((term) => text.includes(term))) {
-    points -= 24;
-    reasons.push("generic directory/news/SEO result risk");
-  }
-
-  if (!result.url || text.length < 120) points -= 10;
-
-  const relevanceScore: RelevanceScore = points >= 58 ? "A" : points >= 40 ? "B" : points >= 24 ? "C" : "D";
-  const confidence = Number(Math.max(0.2, Math.min(0.94, points / 85)).toFixed(2));
-  return {
-    accepted: relevanceScore !== "D",
-    relevanceScore,
-    confidence,
-    reason: reasons.length ? reasons.join("; ") : "weak or generic public web signal"
-  };
-}
-
-function scoreDemandResult(result: SearchResult, campaign: LeadCampaign): SearchQuality {
-  const text = [result.title, result.url, result.snippet, result.query].join(" ").toLowerCase();
-  let points = 0;
-  const reasons: string[] = [];
-
-  const matchedDemand = DEMAND_SIGNALS.filter(s => text.includes(s));
-  points += matchedDemand.length * 18;
-  if (matchedDemand.length) reasons.push(`demand signals: ${matchedDemand.slice(0, 3).join(", ")}`);
-
-  const matchedUrgency = URGENCY_SIGNALS.filter(s => text.includes(s));
-  if (matchedUrgency.length) {
-    points += matchedUrgency.length * 22;
-    reasons.push(`urgency: ${matchedUrgency.slice(0, 2).join(", ")}`);
-  }
-
-  const lineTerms = campaign.businessLine === "mixed"
-    ? [...LINE_TERMS.yacht_sale, ...LINE_TERMS.yacht_charter, ...LINE_TERMS.car_rental]
-    : LINE_TERMS[campaign.businessLine];
-  const matchedLine = lineTerms.filter(term => text.includes(term)).slice(0, 4);
-  points += matchedLine.length * 10;
-  if (matchedLine.length) reasons.push(`business terms: ${matchedLine.slice(0, 2).join(", ")}`);
-
-  if (JUNK_TERMS.some(term => text.includes(term))) {
-    points -= 20;
-    reasons.push("generic/SEO content detected");
-  }
-  if (!result.url || text.length < 80) points -= 15;
-
-  const relevanceScore: RelevanceScore = points >= 50 ? "A" : points >= 30 ? "B" : points >= 15 ? "C" : "D";
-  const confidence = Number(Math.max(0.2, Math.min(0.95, points / 88)).toFixed(2));
-  return {
-    accepted: relevanceScore !== "D",
-    relevanceScore,
-    confidence,
-    reason: reasons.length ? reasons.join("; ") : "weak demand signal"
-  };
-}
-
 async function serperSearch(query: string, limit: number): Promise<SearchResult[]> {
   const key = process.env.SERPER_API_KEY;
   if (!key) return [];
@@ -345,10 +120,34 @@ async function activeAgentIds() {
   return agents.filter((agent) => agent.status === "active").map((agent) => agent.id);
 }
 
-async function runLeadHunterOnResult(result: SearchResult, campaign: LeadCampaign, quality: SearchQuality, enabledAgentIds: string[]) {
+// Maps a CIECandidate to the legacy SearchQuality shape for backward-compatible metadata.
+function candidateToQuality(candidate: CIECandidate): SearchQuality {
+  const gradeToScore: Record<string, number> = { A: 0.9, B: 0.7, C: 0.5, D: 0.2 };
+  return {
+    accepted: candidate.accepted,
+    relevanceScore: candidate.opportunityScore as RelevanceScore,
+    confidence: gradeToScore[candidate.opportunityScore] ?? 0.5,
+    reason: [
+      `Classification: ${candidate.classification}`,
+      candidate.evidence?.demandPhrase ? `Demand: "${candidate.evidence.demandPhrase}"` : null,
+      candidate.evidence?.locationPhrase ? `Location: "${candidate.evidence.locationPhrase}"` : null,
+      candidate.freshness.hasFreshness ? `Freshness: "${candidate.freshness.phrase}"` : null,
+      candidate.recommendation
+    ].filter(Boolean).join(" | ")
+  };
+}
+
+async function runLeadHunterOnResult(
+  result: SearchResult,
+  campaign: LeadCampaign,
+  candidate: CIECandidate,
+  enabledAgentIds: string[]
+) {
+  const quality = candidateToQuality(candidate);
   const body = [
     `Campaign: ${campaign.campaignName}`,
     `Business line: ${campaign.businessLine}`,
+    `Search mode: ${campaign.searchMode}`,
     `Offer brief: ${campaign.offerBrief || "not specified"}`,
     `Target segments: ${campaign.targetSegments || "not specified"}`,
     `Geography: ${campaign.geography || "not specified"}`,
@@ -356,8 +155,16 @@ async function runLeadHunterOnResult(result: SearchResult, campaign: LeadCampaig
     `Title: ${result.title}`,
     `URL: ${result.url}`,
     `Snippet: ${result.snippet}`,
-    `Search quality: ${quality.relevanceScore} (${quality.confidence}) - ${quality.reason}`
-  ].join("\n");
+    `CIE Classification: ${candidate.classification}`,
+    `Opportunity score: ${candidate.opportunityScore} | Confidence: ${candidate.confidence} | Urgency: ${candidate.urgency}`,
+    `Recommendation: ${candidate.recommendation}`,
+    candidate.evidence.demandPhrase ? `Demand evidence: "${candidate.evidence.demandPhrase}"` : null,
+    candidate.evidence.locationPhrase ? `Location evidence: "${candidate.evidence.locationPhrase}"` : null,
+    candidate.freshness.hasFreshness ? `Freshness signal: "${candidate.freshness.phrase}"` : null
+  ].filter(Boolean).join("\n");
+
+  const urgencyToLevel = (u: string) =>
+    u === "immediate" || u === "high" ? "high" : "medium";
 
   const message: InboxMessage = await repository.createMessage({
     id: crypto.randomUUID(),
@@ -366,10 +173,10 @@ async function runLeadHunterOnResult(result: SearchResult, campaign: LeadCampaig
     senderName: result.title.slice(0, 80) || "Public Web Signal",
     senderRole: "unknown",
     body,
-    urgency: quality.relevanceScore === "A" ? "high" : "medium",
+    urgency: urgencyToLevel(candidate.urgency),
     status: "new",
     classification: "Lead Signal",
-    riskLevel: "medium",
+    riskLevel: candidate.opportunityScore === "A" ? "high" : "medium",
     createdAt: now()
   });
 
@@ -395,7 +202,18 @@ async function runLeadHunterOnResult(result: SearchResult, campaign: LeadCampaig
         initialConfidence: quality.confidence,
         initialReason: quality.reason
       },
-      generatedBy: "lead-search-runner-v2"
+      cieCandidate: {
+        classification: candidate.classification,
+        opportunityScore: candidate.opportunityScore,
+        confidence: candidate.confidence,
+        urgency: candidate.urgency,
+        commercialPotential: candidate.commercialPotential,
+        recommendation: candidate.recommendation,
+        evidence: candidate.evidence,
+        geoRelevance: candidate.geoRelevance,
+        freshness: candidate.freshness
+      },
+      generatedBy: "cie-v1"
     }
   });
 
@@ -432,13 +250,15 @@ async function runLeadHunterOnResult(result: SearchResult, campaign: LeadCampaig
   return { message, approval, intelligence, quality };
 }
 
-router.get("/results", asyncRoute(async (_req, res) => {
+router.get("/results", asyncRoute(async (req, res) => {
+  const includeArchived = String(req.query.includeArchived || "") === "true";
   const allApprovals = await repository.listApprovals();
   const candidates = allApprovals.filter(a => a.agentId === LEAD_HUNTER_AGENT_ID && a.type === "lead candidate");
 
   const results = candidates.map(approval => {
     let payload: Record<string, any> = {};
     try { payload = JSON.parse(approval.payload); } catch { /* skip */ }
+    if (!includeArchived && payload.cleanupArchived === true) return null;
 
     const intel     = payload.intelligence || {};
     const draft     = intel.draft || {};
@@ -494,7 +314,7 @@ router.get("/results", asyncRoute(async (_req, res) => {
       caseId:     null,
       caseStatus: null
     };
-  });
+  }).filter((item) => item !== null);
 
   res.json(results);
 }));
@@ -528,6 +348,127 @@ router.get("/status", (_req, res) => {
   });
 });
 
+
+type LeadHunterCleanupScope = "rejected" | "low_quality" | "pending" | "all";
+
+function parseApprovalPayload(approval: ApprovalItem): Record<string, any> {
+  try {
+    const parsed = JSON.parse(approval.payload);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function cleanupScore(payload: Record<string, any>): string {
+  return String(
+    payload.searchQuality?.relevanceScore ||
+    payload.relevanceScore ||
+    payload.intelligence?.draft?.relevanceScore ||
+    payload.intelligence?.reasoning?.leadScore ||
+    ""
+  ).toUpperCase();
+}
+
+function cleanupClassification(payload: Record<string, any>): string {
+  return String(
+    payload.intelligence?.draft?.classification ||
+    payload.intelligence?.metadata?.cieCandidate?.classification ||
+    payload.intelligence?.reasoning?.classification ||
+    payload.cieCandidate?.classification ||
+    ""
+  ).toLowerCase();
+}
+
+function shouldCleanupApproval(approval: ApprovalItem, payload: Record<string, any>, scope: LeadHunterCleanupScope): boolean {
+  if (payload.cleanupArchived === true) return false;
+  if (approval.agentId !== LEAD_HUNTER_AGENT_ID || approval.type !== "lead candidate") return false;
+
+  if (scope === "all") return true;
+  if (scope === "pending") return approval.status === "pending";
+  if (scope === "rejected") return approval.status === "rejected";
+
+  const score = cleanupScore(payload);
+  const classification = cleanupClassification(payload);
+  const lowQualityClassifications = new Set(["provider_page", "job_ad", "old_expired", "generic_directory", "irrelevant", "unclear"]);
+
+  return approval.status === "rejected" || ["C", "D", "SPAM"].includes(score) || lowQualityClassifications.has(classification);
+}
+
+async function archiveRelatedRecords(approval: ApprovalItem, tasks: AgentTask[]) {
+  const archived: { messages: number; tasks: number } = { messages: 0, tasks: 0 };
+  if (approval.relatedMessageId) {
+    const message = await repository.findMessage(approval.relatedMessageId);
+    if (message && message.status !== "archived") {
+      await repository.updateMessage({ ...message, status: "archived" });
+      archived.messages += 1;
+    }
+
+    const relatedTasks = tasks.filter(task => task.relatedMessageId === approval.relatedMessageId && !["completed", "rejected", "failed"].includes(task.status));
+    for (const task of relatedTasks) {
+      await repository.updateTask(task.id, { status: "rejected" });
+      archived.tasks += 1;
+    }
+  }
+  return archived;
+}
+
+router.post("/cleanup", asyncRoute(async (req, res) => {
+  const requestedScope = String(req.body?.scope || "low_quality") as LeadHunterCleanupScope;
+  const allowedScopes: LeadHunterCleanupScope[] = ["rejected", "low_quality", "pending", "all"];
+  const scope = allowedScopes.includes(requestedScope) ? requestedScope : "low_quality";
+  const reason = String(req.body?.reason || `Lead Hunter cleanup: ${scope}`).slice(0, 240);
+  const archivedAt = now();
+
+  const [approvals, tasks] = await Promise.all([
+    repository.listApprovals(),
+    repository.listTasks()
+  ]);
+
+  const targets = approvals
+    .map(approval => ({ approval, payload: parseApprovalPayload(approval) }))
+    .filter(({ approval, payload }) => shouldCleanupApproval(approval, payload, scope));
+
+  const summary = {
+    scope,
+    approvalsArchived: 0,
+    messagesArchived: 0,
+    tasksRejected: 0
+  };
+
+  for (const { approval, payload } of targets) {
+    const nextPayload = {
+      ...payload,
+      cleanupArchived: true,
+      cleanup: {
+        archivedAt,
+        archivedBy: "human_operator",
+        reason,
+        scope,
+        previousStatus: approval.status
+      }
+    };
+
+    await repository.updateApproval(approval.id, {
+      status: "done",
+      payload: JSON.stringify(nextPayload)
+    });
+    summary.approvalsArchived += 1;
+
+    const related = await archiveRelatedRecords(approval, tasks);
+    summary.messagesArchived += related.messages;
+    summary.tasksRejected += related.tasks;
+  }
+
+  await repository.logActivity(
+    "admin",
+    "lead_hunter_cleanup",
+    `${summary.approvalsArchived} lead candidate approval(s) archived, ${summary.messagesArchived} message(s) archived, ${summary.tasksRejected} task(s) rejected. Scope: ${scope}`,
+    LEAD_HUNTER_AGENT_ID
+  );
+
+  res.json(summary);
+}));
 router.post("/run", asyncRoute(async (req, res) => {
   const campaign = normalizeCampaign(req.body || {});
   const queries = campaign.searchQueries.length ? campaign.searchQueries : [composeFallbackQuery(campaign)].filter(Boolean);
@@ -551,25 +492,37 @@ router.post("/run", asyncRoute(async (req, res) => {
 
   const perQuery = Math.min(Math.max(Number(req.body.perQuery) || 4, 1), 10);
   const rawResults = (await Promise.all(queries.map((query) => serperSearch(query, perQuery)))).flat();
-  const { unique, duplicates } = dedupe(rawResults);
-  const accepted: Array<{ result: SearchResult; quality: SearchQuality }> = [];
-  const filtered: Array<{ result: SearchResult; reason: string; relevanceScore?: RelevanceScore }> = duplicates.map((result) => ({ result, reason: "duplicate URL or result" }));
 
-  for (const result of unique) {
-    const quality = campaign.searchMode === "demand_discovery"
-      ? scoreDemandResult(result, campaign)
-      : scoreSearchResult(result, campaign);
-    if (quality.accepted) accepted.push({ result, quality });
-    else filtered.push({ result, reason: quality.reason, relevanceScore: quality.relevanceScore });
-  }
+  const cieContext = {
+    businessLine: campaign.businessLine,
+    searchMode: campaign.searchMode,
+    geography: campaign.geography,
+    targetSegments: campaign.targetSegments,
+    offerBrief: campaign.offerBrief
+  };
+  const cieResult = CommercialIntelligenceEngine.process(rawResults, cieContext);
 
   const enabledAgentIds = await activeAgentIds();
-  const selected = accepted.slice(0, campaign.maxResults);
+  const toProcess = cieResult.accepted.slice(0, campaign.maxResults);
   const created = [];
 
-  for (const item of selected) {
-    created.push(await runLeadHunterOnResult(item.result, campaign, item.quality, enabledAgentIds));
+  for (const candidate of toProcess) {
+    const rawResult: SearchResult = {
+      title: candidate.title,
+      url: candidate.sourceUrl,
+      snippet: candidate.snippet,
+      query: candidate.query
+    };
+    created.push(await runLeadHunterOnResult(rawResult, campaign, candidate, enabledAgentIds));
   }
+
+  // Build filteredResults in the same shape as before for UI compatibility
+  const filteredResults = cieResult.rejected.slice(0, 20).map(c => ({
+    result: { title: c.title, url: c.sourceUrl, snippet: c.snippet, query: c.query } as SearchResult,
+    reason: c.rejectionReason || c.classification,
+    relevanceScore: c.opportunityScore as RelevanceScore,
+    classification: c.classification
+  }));
 
   res.json({
     setupRequired: false,
@@ -580,14 +533,23 @@ router.post("/run", asyncRoute(async (req, res) => {
     campaign,
     queries,
     found: rawResults.length,
-    accepted: accepted.length,
-    filtered: filtered.length,
-    processed: selected.length,
+    accepted: cieResult.accepted.length,
+    filtered: cieResult.rejected.length,
+    processed: toProcess.length,
     created: created.length,
     activeAgentIds: enabledAgentIds,
-    approvals: created.map((item) => ({ id: item.approval.id, title: item.approval.title, riskLevel: item.approval.riskLevel, score: item.intelligence.draft.relevanceScore, handoffPending: item.intelligence.draft.handoffPending })),
-    results: selected.map((item) => item.result),
-    filteredResults: filtered.slice(0, 20)
+    cieStats: cieResult.stats,
+    approvals: created.map((item) => ({
+      id: item.approval.id,
+      title: item.approval.title,
+      riskLevel: item.approval.riskLevel,
+      score: item.intelligence.draft.relevanceScore,
+      handoffPending: item.intelligence.draft.handoffPending
+    })),
+    results: toProcess.map(c => ({
+      title: c.title, url: c.sourceUrl, snippet: c.snippet, query: c.query
+    })),
+    filteredResults
   });
 }));
 

@@ -5,9 +5,7 @@ import type { ToolRequest, ToolRequestPriority, ToolRiskLevel } from "../../core
 import { RecommendedDecision } from "../../core/RecommendedDecision";
 import { buildToolPlan } from "../../core/ToolPlan";
 import { resolvePolicy } from "../../core/ToolRegistry";
-
-type BusinessLine = "yacht_sale" | "yacht_charter" | "car_rental" | "mixed";
-type SearchMode = "company_discovery" | "demand_discovery" | "partner_discovery" | "market_intelligence";
+import type { BusinessLine, SearchMode } from "../../../platform/cie";
 
 type LeadHunterCampaign = {
   campaignName?: string;

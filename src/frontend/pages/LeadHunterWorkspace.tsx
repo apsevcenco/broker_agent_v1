@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
 import { Badge, Empty } from "../components/UI";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type BusinessLine = "yacht_sale" | "yacht_charter" | "car_rental" | "mixed";
 type Tone = "neutral" | "gold" | "red" | "green" | "blue";
@@ -55,7 +55,16 @@ type Filters = {
   search: string;
 };
 
-// ── Tab config ────────────────────────────────────────────────────────────────
+type CleanupScope = "rejected" | "low_quality" | "pending" | "all";
+
+type CleanupSummary = {
+  scope: CleanupScope;
+  approvalsArchived: number;
+  messagesArchived: number;
+  tasksRejected: number;
+};
+
+// â”€â”€ Tab config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type TabId = "all" | "yacht_sale" | "yacht_charter" | "car_rental" | "active_demand" | "partners" | "rejected";
 
@@ -73,7 +82,7 @@ const TABS: { id: TabId; label: string; test: (l: LeadResult) => boolean }[] = [
   { id: "rejected",  label: "Rejected",  test: l => l.approvalStatus === "rejected" }
 ];
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
+// â”€â”€ Utilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function tc(s: string): string {
   return s ? s.replace(/[_-]+/g, " ").replace(/\b\w/g, c => c.toUpperCase()) : "";
@@ -91,7 +100,7 @@ function relTime(iso: string): string {
 }
 
 function trunc(s: string, n: number): string {
-  return s && s.length > n ? s.slice(0, n) + "…" : (s || "");
+  return s && s.length > n ? s.slice(0, n) + "â€¦" : (s || "");
 }
 
 function domainOf(url: string): string {
@@ -157,7 +166,7 @@ function recLabel(s: string): string {
     PROCEED: "Contact", PROCEED_WITH_CAUTION: "Review",
     NEED_MORE_INFORMATION: "Qualify", REJECT: "Low Priority", ARCHIVE: "Low Priority"
   };
-  return map[(s || "").toUpperCase()] || tc(s) || "—";
+  return map[(s || "").toUpperCase()] || tc(s) || "â€”";
 }
 
 function rejectionType(lead: LeadResult): string {
@@ -172,7 +181,7 @@ function rejectionType(lead: LeadResult): string {
 function effectiveRecommendation(lead: LeadResult): string {
   if (lead.operatorRecommendation) return lead.operatorRecommendation;
   if (lead.recommendation)         return recLabel(lead.recommendation);
-  return "—";
+  return "â€”";
 }
 
 function effectiveRecTone(lead: LeadResult): Tone {
@@ -184,7 +193,7 @@ function effectiveRecTone(lead: LeadResult): Tone {
   return "neutral";
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function TabBar({
   active, counts, onChange
@@ -207,7 +216,7 @@ function TabBar({
   );
 }
 
-// ── Filters ───────────────────────────────────────────────────────────────────
+// â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function FiltersBar({
   filters, categories, onChange
@@ -239,7 +248,7 @@ function FiltersBar({
       </select>
       <input
         className="lh-filter-search"
-        placeholder="Search company, category, query…"
+        placeholder="Search company, category, queryâ€¦"
         value={filters.search}
         onChange={set("search")}
       />
@@ -247,14 +256,14 @@ function FiltersBar({
   );
 }
 
-// ── Table ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ResultsTable({ leads, onView }: { leads: LeadResult[]; onView: (l: LeadResult) => void }) {
   if (!leads.length) {
     return (
       <div className="lhw-empty">
         <p>No results match the current filters.</p>
-        <a href="/lead-hunter/results" className="lh-btn-sm">Run New Search →</a>
+        <a href="/lead-hunter/results" className="lh-btn-sm">Run New Search â†’</a>
       </div>
     );
   }
@@ -295,10 +304,10 @@ function ResultRow({ lead, onView }: { lead: LeadResult; onView: (l: LeadResult)
       <td>
         {domain
           ? <span className="lhw-source">{domain}</span>
-          : <span style={{ color: "#94a3b8" }}>—</span>}
+          : <span style={{ color: "#94a3b8" }}>â€”</span>}
       </td>
       <td>
-        <div className="lh-row-person">{lead.companyOrPerson || "—"}</div>
+        <div className="lh-row-person">{lead.companyOrPerson || "â€”"}</div>
         {lead.snippet && <div className="lh-row-sub">{lead.snippet}</div>}
       </td>
       <td>
@@ -306,17 +315,17 @@ function ResultRow({ lead, onView }: { lead: LeadResult; onView: (l: LeadResult)
           ? <Badge>{lead.requestType}</Badge>
           : lead.leadCategory
             ? <Badge>{tc(lead.leadCategory)}</Badge>
-            : <span style={{ color: "#94a3b8" }}>—</span>}
+            : <span style={{ color: "#94a3b8" }}>â€”</span>}
       </td>
       <td>
         {lead.leadScore
           ? <Badge tone={scoreTone(lead.leadScore)}>{lead.leadScore}</Badge>
-          : <span style={{ color: "#94a3b8" }}>—</span>}
+          : <span style={{ color: "#94a3b8" }}>â€”</span>}
       </td>
       <td>
         {lead.urgency
           ? <Badge tone={urgencyTone(lead.urgency)}>{urgencyLabel(lead.urgency)}</Badge>
-          : <span style={{ color: "#94a3b8" }}>—</span>}
+          : <span style={{ color: "#94a3b8" }}>â€”</span>}
       </td>
       <td>
         {lead.approvalStatus === "rejected"
@@ -337,7 +346,7 @@ function ResultRow({ lead, onView }: { lead: LeadResult; onView: (l: LeadResult)
           )}
           {lead.sourceUrl && (
             <a className="lh-btn-sm lh-btn-link" href={lead.sourceUrl} target="_blank" rel="noopener noreferrer">
-              Source ↗
+              Source â†—
             </a>
           )}
         </div>
@@ -346,7 +355,7 @@ function ResultRow({ lead, onView }: { lead: LeadResult; onView: (l: LeadResult)
   );
 }
 
-// ── Drawer Section ────────────────────────────────────────────────────────────
+// â”€â”€ Drawer Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function DrawerSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -357,7 +366,7 @@ function DrawerSection({ label, children }: { label: string; children: React.Rea
   );
 }
 
-// ── Detail Drawer ─────────────────────────────────────────────────────────────
+// â”€â”€ Detail Drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function LeadDrawer({ lead, onClose }: { lead: LeadResult; onClose: () => void }) {
   const toolRequests: any[] = Array.isArray(lead.toolPlan?.toolRequests) ? lead.toolPlan.toolRequests : [];
@@ -381,7 +390,7 @@ function LeadDrawer({ lead, onClose }: { lead: LeadResult; onClose: () => void }
               {lead.urgency    && <Badge tone={urgencyTone(lead.urgency)}>{urgencyLabel(lead.urgency)}</Badge>}
             </div>
           </div>
-          <button className="lh-drawer-close" onClick={onClose} aria-label="Close">✕</button>
+          <button className="lh-drawer-close" onClick={onClose} aria-label="Close">âœ•</button>
         </div>
 
         <div className="lh-drawer-body">
@@ -392,7 +401,7 @@ function LeadDrawer({ lead, onClose }: { lead: LeadResult; onClose: () => void }
               <p>
                 {rejType === "Job Ad"         && "This result appears to be a job advertisement, not a commercial opportunity."}
                 {rejType === "Directory"      && "This result appears to be a directory or listing page with no actionable commercial signal."}
-                {rejType === "SEO / Content"  && "This result appears to be SEO content, a blog post, or a press release — not a direct lead signal."}
+                {rejType === "SEO / Content"  && "This result appears to be SEO content, a blog post, or a press release â€” not a direct lead signal."}
                 {rejType === "Old / Expired"  && "This result may be outdated or expired and unlikely to represent an active opportunity."}
                 {rejType === "Operator Rejected" && "This candidate was reviewed and rejected by the operator."}
               </p>
@@ -499,12 +508,12 @@ function LeadDrawer({ lead, onClose }: { lead: LeadResult; onClose: () => void }
           {toolRequests.length > 0 && (
             <div className="lh-section">
               <div className="lh-section-label">
-                Proposed Tool Plan — {toolRequests.length} action{toolRequests.length !== 1 ? "s" : ""} (approval required)
+                Proposed Tool Plan â€” {toolRequests.length} action{toolRequests.length !== 1 ? "s" : ""} (approval required)
               </div>
               <div className="ops-tool-list" style={{ marginTop: 8 }}>
                 {toolRequests.map((req: any, i: number) => (
                   <div key={req.id || i} className="ops-tool-row">
-                    <div className="ops-check">✓</div>
+                    <div className="ops-check">âœ“</div>
                     <div>
                       <strong>{req.tool || "Proposed action"}</strong>
                       {req.reason && <p>{req.reason}</p>}
@@ -547,7 +556,7 @@ function LeadDrawer({ lead, onClose }: { lead: LeadResult; onClose: () => void }
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Main â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const DEFAULT_FILTERS: Filters = { businessLine: "", leadCategory: "", approvalStatus: "", search: "" };
 
@@ -557,12 +566,44 @@ export function LeadHunterWorkspace() {
   const [filters,  setFilters]  = useState<Filters>(DEFAULT_FILTERS);
   const [selected, setSelected] = useState<LeadResult | null>(null);
   const [error,    setError]    = useState<string | null>(null);
+  const [cleanupBusy, setCleanupBusy] = useState<CleanupScope | null>(null);
+  const [cleanupResult, setCleanupResult] = useState<CleanupSummary | null>(null);
 
-  useEffect(() => {
-    api<LeadResult[]>("/api/lead-hunter/search/results")
+  const loadResults = () => {
+    setError(null);
+    return api<LeadResult[]>("/api/lead-hunter/search/results")
       .then(setLeads)
       .catch((e: Error) => setError(e.message));
+  };
+
+  useEffect(() => {
+    loadResults();
   }, []);
+
+  const runCleanup = async (scope: CleanupScope) => {
+    const labels: Record<CleanupScope, string> = {
+      rejected: "archive rejected Lead Hunter results",
+      low_quality: "archive low-quality Lead Hunter results",
+      pending: "archive all pending Lead Hunter results",
+      all: "archive all Lead Hunter results"
+    };
+    if ((scope === "pending" || scope === "all") && !window.confirm(`Are you sure you want to ${labels[scope]}?`)) return;
+    setCleanupBusy(scope);
+    setCleanupResult(null);
+    try {
+      const result = await api<CleanupSummary>("/api/lead-hunter/search/cleanup", {
+        method: "POST",
+        body: JSON.stringify({ scope, reason: labels[scope] })
+      });
+      setCleanupResult(result);
+      await loadResults();
+      setSelected(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cleanup failed");
+    } finally {
+      setCleanupBusy(null);
+    }
+  };
 
   const tabCounts = useMemo<Record<TabId, number>>(() => {
     if (!leads) return {} as Record<TabId, number>;
@@ -610,7 +651,28 @@ export function LeadHunterWorkspace() {
             All discovered lead candidates from public web search. Review, qualify, and approve before creating Business Cases.
           </p>
         </div>
-        <a href="/lead-hunter/results" className="lhw-run-btn">Run New Search →</a>
+        <a href="/lead-hunter/results" className="lhw-run-btn">Run New Search â†’</a>
+      </div>
+
+      <div className="panel" style={{ marginTop: 14, padding: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div>
+            <strong>Cleanup</strong>
+            <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 13 }}>
+              Archive unwanted Lead Hunter approvals, related search messages and review tasks. Archived items are hidden from this workspace.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="lh-btn-sm" disabled={!!cleanupBusy} onClick={() => runCleanup("rejected")}>{cleanupBusy === "rejected" ? "Archiving..." : "Archive Rejected"}</button>
+            <button className="lh-btn-sm" disabled={!!cleanupBusy} onClick={() => runCleanup("low_quality")}>{cleanupBusy === "low_quality" ? "Archiving..." : "Archive Low Quality"}</button>
+            <button className="lh-btn-sm" disabled={!!cleanupBusy} onClick={() => runCleanup("pending")}>{cleanupBusy === "pending" ? "Archiving..." : "Archive Pending"}</button>
+          </div>
+        </div>
+        {cleanupResult && (
+          <p style={{ margin: "10px 0 0", color: "#166534", fontSize: 13 }}>
+            Archived {cleanupResult.approvalsArchived} approval(s), {cleanupResult.messagesArchived} message(s), rejected {cleanupResult.tasksRejected} task(s).
+          </p>
+        )}
       </div>
 
       {error && <Empty text={`Error loading results: ${error}`} />}
@@ -622,12 +684,12 @@ export function LeadHunterWorkspace() {
           <FiltersBar filters={filters} categories={categories} onChange={setFilters} />
 
           {!leads
-            ? <Empty text="Loading…" />
+            ? <Empty text="Loadingâ€¦" />
             : leads.length === 0
               ? (
                 <div className="lhw-empty lhw-empty-page">
                   <p>No lead results yet.</p>
-                  <a href="/lead-hunter/results" className="lh-btn-sm">Run Lead Hunter Search →</a>
+                  <a href="/lead-hunter/results" className="lh-btn-sm">Run Lead Hunter Search â†’</a>
                 </div>
               )
               : <ResultsTable leads={visible} onView={setSelected} />

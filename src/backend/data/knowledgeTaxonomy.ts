@@ -45,8 +45,19 @@ export const knowledgeTaxonomies: AgentKnowledgeTaxonomy[] = [
     agentId: "client-acquisition-agent",
     slug: "client-acquisition",
     categories: [
-      { id: "safe-outreach", label: "Safe Outreach", description: "Compliant prospect research, drafting, approval and anti-spam boundaries.", tags: ["outreach", "compliance", "approval"], risk: "high" },
-      { id: "prospect-research", label: "Prospect Research", description: "Public-source research, segmentation and relationship-first lead development.", tags: ["prospecting", "research", "lead"], risk: "medium" }
+      { id: "commercial-search", label: "Commercial Search", description: "Search strategy, query construction, boolean operators, multilingual expansion and public source prioritisation.", tags: ["search", "query", "boolean", "multilingual"], risk: "low" },
+      { id: "demand-discovery", label: "Demand Discovery", description: "Active demand signals, RFQ detection, booking requests, tender notices, urgency indicators and buyer intent.", tags: ["demand", "rfq", "booking", "urgency", "intent"], risk: "medium" },
+      { id: "company-discovery", label: "Company Discovery", description: "Family office identification, yacht brokerage, charter company, concierge, hotel, villa management and luxury travel advisor signals.", tags: ["company", "family-office", "broker", "concierge", "hotel"], risk: "medium" },
+      { id: "partner-discovery", label: "Partner Discovery", description: "Referral partner detection, commission opportunities, strategic partnerships and high-value partner profiles.", tags: ["partner", "referral", "commission", "partnership"], risk: "medium" },
+      { id: "market-intelligence", label: "Market Intelligence", description: "Fleet changes, builder news, marina activity, new hotels, competitor monitoring and industry expansion signals.", tags: ["market", "competitor", "fleet", "builder", "marina"], risk: "low" },
+      { id: "classification", label: "Classification", description: "Rules for classifying results as company lead, partner lead, active demand, market intelligence, provider page, job ad, directory, SEO page or unclear.", tags: ["classification", "provider", "job-ad", "directory", "seo"], risk: "medium" },
+      { id: "freshness", label: "Freshness", description: "Determining whether a result is today, tomorrow, this week, this month, recent, expired, historical or archived.", tags: ["freshness", "date", "stale", "urgency", "recent"], risk: "low" },
+      { id: "geography", label: "Geography", description: "Commercial territory rules including French Riviera, Monaco, Mediterranean, airport terminology, marina terminology and luxury travel hotspots.", tags: ["geography", "monaco", "riviera", "mediterranean", "airport"], risk: "low" },
+      { id: "commercial-scoring", label: "Commercial Scoring", description: "Opportunity score (A–D), confidence, urgency, commercial potential and decision priority framework.", tags: ["scoring", "opportunity", "confidence", "urgency", "priority"], risk: "medium" },
+      { id: "rejection-rules", label: "Rejection Rules", description: "Provider detection, SEO content, job advertisement, duplicate, directory and spam rejection rules with false-positive prevention.", tags: ["rejection", "provider", "spam", "duplicate", "seo"], risk: "medium" },
+      { id: "evidence-rules", label: "Evidence Rules", description: "Minimum evidence requirements before creating approvals, business cases or recommendations.", tags: ["evidence", "approval", "confidence", "minimum"], risk: "high" },
+      { id: "communication-awareness", label: "Communication Awareness", description: "Recognising commercial language, RFQs, booking requests, quotation language and intent signals without writing outreach.", tags: ["communication", "rfq", "booking", "intent", "language"], risk: "medium" },
+      { id: "policy", label: "Policy", description: "Operational policies governing Lead Hunter behaviour: never invent leads, never auto-contact, never fabricate urgency, approval before execution.", tags: ["policy", "compliance", "approval", "boundary"], risk: "high" }
     ]
   }
 ];
